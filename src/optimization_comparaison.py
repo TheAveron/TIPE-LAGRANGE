@@ -1,9 +1,8 @@
 import time
-import rebound
-import numpy as np
+
 import matplotlib.pyplot as plt
-
-
+import numpy as np
+import rebound
 
 # Constants for the Sun-Earth system
 G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
@@ -24,19 +23,22 @@ lagrange_points = [L1, L2, L3, L4, L5]
 
 import numpy as np
 
+
 def general_relativity_correction(sim):
     """Applies 1PN GR corrections to accelerations with NumPy vectorization."""
     ps = sim.particles  # Get particles list
     N = len(ps)
     c2_inv = 1 / c**2  # Store 1/c² for later use
-    
+
     # Gather positions and velocities in arrays
     positions = np.array([[p.x, p.y, p.z] for p in ps])
     velocities = np.array([[p.vx, p.vy, p.vz] for p in ps])
     masses = np.array([p.m for p in ps])
 
     # Calculate the relative positions and distances (pairwise)
-    diff_positions = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]  # shape: (N, N, 3)
+    diff_positions = (
+        positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+    )  # shape: (N, N, 3)
     r2 = np.sum(diff_positions**2, axis=2)  # r² (distance squared between all pairs)
     r = np.sqrt(r2)  # r (distance between all pairs)
     inv_r = 1 / r  # 1/r
@@ -52,14 +54,21 @@ def general_relativity_correction(sim):
 
     # Precompute Newtonian acceleration factors: G * m / r³
     Gm_r3 = G * masses[:, np.newaxis] * inv_r3  # shape: (N, N)
-    dot_product = np.sum(diff_positions * velocities[:, np.newaxis, :], axis=2)  # shape: (N, N)
-    
+    dot_product = np.sum(
+        diff_positions * velocities[:, np.newaxis, :], axis=2
+    )  # shape: (N, N)
+
     # Calculate the 1PN correction factor for each pair
-    factor = ((4 * G * masses[:, np.newaxis] * inv_r - v1_sq[:, np.newaxis]) * c2_inv + 
-              4 * (dot_product**2) * (inv_r2 * c2_inv))  # shape: (N, N)
+    factor = (
+        4 * G * masses[:, np.newaxis] * inv_r - v1_sq[:, np.newaxis]
+    ) * c2_inv + 4 * (dot_product**2) * (
+        inv_r2 * c2_inv
+    )  # shape: (N, N)
 
     # Apply the correction to accelerations
-    accelerations += np.sum(Gm_r3 * diff_positions * (1 + factor)[:, :, np.newaxis], axis=1)
+    accelerations += np.sum(
+        Gm_r3 * diff_positions * (1 + factor)[:, :, np.newaxis], axis=1
+    )
 
     # Update particle accelerations
     for i, p in enumerate(ps):
@@ -95,7 +104,9 @@ def general_relativity_correction_non_vectorized(sim):
             ay_N = G * p2.m * inv_r3 * dy
             az_N = G * p2.m * inv_r3 * dz
             dot_product = dx * p1.vx + dy * p1.vy + dz * p1.vz
-            factor = ((4 * G * p2.m * inv_r - v1_sq) * c2_inv + 4 * (dot_product**2) * (inv_r2 * c2_inv))
+            factor = (4 * G * p2.m * inv_r - v1_sq) * c2_inv + 4 * (
+                dot_product**2
+            ) * (inv_r2 * c2_inv)
             ax += ax_N * (1 + factor)
             ay += ay_N * (1 + factor)
             az += az_N * (1 + factor)
@@ -103,15 +114,17 @@ def general_relativity_correction_non_vectorized(sim):
         p1.ay += ay
         p1.az += az
 
+
 # Set up a simple simulation to measure performance
 def run_simulation(sim, correction_func):
     sim.additional_forces = correction_func
     sim.integrator = "ias15"
     sim.move_to_com()
-    
+
     times = np.linspace(0, 1, 500)  # Simulate for 100 years, 500 time steps
     for t in times:
         sim.integrate(t)
+
 
 # Measure the time for the non-vectorized version
 def measure_time():
@@ -122,14 +135,14 @@ def measure_time():
     sim.add(m=3e-6, a=1.0)  # Earth
     sim.add(m=0)  # Add test particles to Lagrange points
 
-    for _ in range(N-2):  # Adding more test particles
+    for _ in range(N - 2):  # Adding more test particles
         sim.add(m=0)
 
     def non_vec_correction(re_sim):
         general_relativity_correction_non_vectorized(sim)
+
     def vec_correction(re_sim):
         general_relativity_correction(sim)
-
 
     # Time for non-vectorized
     start_time = time.perf_counter()
@@ -143,6 +156,7 @@ def measure_time():
 
     return non_vec_time, vec_time
 
+
 # Test speed with different numbers of particles
 N_values = [50, 100, 200, 400, 800]
 non_vec_times = []
@@ -155,13 +169,20 @@ for N in N_values:
 
 # Plotting the results
 plt.figure(figsize=(8, 6))
-plt.plot(N_values, non_vec_times, label="Non-Vectorized", marker='o', linestyle='-', color='r')
-plt.plot(N_values, vec_times, label="Vectorized", marker='o', linestyle='-', color='b')
+plt.plot(
+    N_values,
+    non_vec_times,
+    label="Non-Vectorized",
+    marker="o",
+    linestyle="-",
+    color="r",
+)
+plt.plot(N_values, vec_times, label="Vectorized", marker="o", linestyle="-", color="b")
 plt.xlabel("Number of Particles")
 plt.ylabel("Execution Time (seconds)")
 plt.title("Execution Time Comparison: Non-Vectorized vs Vectorized")
 plt.legend()
 plt.grid(True)
-plt.xscale('log')
-plt.yscale('log')
+plt.xscale("log")
+plt.yscale("log")
 plt.show()

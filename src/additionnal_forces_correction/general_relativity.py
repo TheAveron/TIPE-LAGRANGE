@@ -4,6 +4,7 @@ G = 4 * np.pi**2
 C = 63239.7263
 C2_INV = 1 / C**2
 
+
 # Define Post-Newtonian (1PN) correction function
 def general_relativity(sim):
     """Applies 1PN GR corrections to accelerations."""
@@ -27,9 +28,9 @@ def general_relativity(sim):
             dx = p2.x - p1.x
             dy = p2.y - p1.y
             dz = p2.z - p1.z
-            r2 = max( dx**2 + dy**2 + dz**2, 1e-12 )
+            r2 = max(dx**2 + dy**2 + dz**2, 1e-12)
 
-            r = np.sqrt(r2)  
+            r = np.sqrt(r2)
             inv_r = 1 / r  # Store 1/r for reuse
             inv_r2 = inv_r**2  # 1/r²
             inv_r3 = inv_r2 * inv_r  # 1/r³
@@ -44,10 +45,12 @@ def general_relativity(sim):
             v2_sq = p2.vx**2 + p2.vy**2 + p2.vz**2  # v₂² (squared velocity of p2)
             dot_product1 = dx * p1.vx + dy * p1.vy + dz * p1.vz  # (r · v1)
             dot_product2 = dx * p2.vx + dy * p2.vy + dz * p2.vz  # (r · v2)
-            
+
             # Symmetric relativistic correction factor
-            factor = 1 + ((4 * G * p2.m * inv_r - v1_sq - v2_sq) * C2_INV +
-                        4 * dot_product1 * dot_product2 * inv_r2 * C2_INV)
+            factor = 1 + (
+                (4 * G * p2.m * inv_r - v1_sq - v2_sq) * C2_INV
+                + 4 * dot_product1 * dot_product2 * inv_r2 * C2_INV
+            )
 
             # Apply relativistic correction factor
             ax += ax_N * factor

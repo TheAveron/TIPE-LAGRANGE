@@ -2,24 +2,27 @@ import numpy as np
 
 G = 4 * np.pi**2
 
+
 def newtonian(sim):
     """Applies Newtonian gravity corrections to accelerations without General Relativity effects."""
     ps = sim.particles  # Get particles list
-    
+
     # Gather positions and velocities in arrays
     positions = np.array([[p.x, p.y, p.z] for p in ps])
     velocities = np.array([[p.vx, p.vy, p.vz] for p in ps])
     masses = np.array([p.m for p in ps])
 
     # Compute pairwise position differences
-    diff_positions = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]  # shape: (N, N, 3)
+    diff_positions = (
+        positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+    )  # shape: (N, N, 3)
     r2 = np.sum(diff_positions**2, axis=2)  # r² (distance squared between all pairs)
-    
+
     # Add small epsilon to prevent division by zero
     epsilon = 1e-10
     r2 = np.maximum(r2, epsilon)  # Ensure r² is never zero
     r = np.sqrt(r2)  # r (distance between all pairs)
-    
+
     inv_r3 = 1 / r**3  # 1/r³
 
     # Initialize accelerations array

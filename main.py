@@ -1,7 +1,8 @@
 from turtle import color
-import rebound
-import numpy as np
+
 import matplotlib.pyplot as plt
+import numpy as np
+import rebound
 from tqdm import tqdm
 
 from src import general_relativity, newtonian
@@ -17,8 +18,10 @@ MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 # Variations of constants for better running time
 C2_INV = 1 / C**2  # Store 1/c² for later use
 
+
 def mapper(object: tuple):
     return tuple(map(float, object))
+
 
 # Approximate Lagrange point locations
 L1 = mapper((A_EARTH * (1 - (MU / 3) ** (1 / 3)), 0, 0))
@@ -31,6 +34,7 @@ lagrange_points = [L1, L2, L3, L4, L5]
 
 particules_number = 7
 
+
 def particule_creation(sim: rebound.Simulation):
     # Add the Sun
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
@@ -40,6 +44,7 @@ def particule_creation(sim: rebound.Simulation):
     # Add test particles at the Lagrange points
     for L in lagrange_points:
         sim.add(x=L[0], y=L[1], z=L[2], vx=0, vy=np.sqrt(G * M_SUN / A_EARTH), vz=0)
+
 
 def graph(positions: dict):
     # Plot the results
@@ -60,11 +65,16 @@ def graph(positions: dict):
     plt.axis("equal")
     plt.show()
 
+
 def rebound_plot(sim):
-    rebound.OrbitPlot(sim, particles=[1], color=True).fig.savefig(f"plots/Lagrange/Earthview.png")
+    rebound.OrbitPlot(sim, particles=[1], color=True).fig.savefig(
+        f"plots/Lagrange/Earthview.png"
+    )
     rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
     for i in range(2, particules_number):
-        rebound.OrbitPlot(sim, particles=[1 , i], primary=0, color=True).fig.savefig(f"plots/Lagrange/L{i-1}.png")
+        rebound.OrbitPlot(sim, particles=[1, i], primary=0, color=True).fig.savefig(
+            f"plots/Lagrange/L{i-1}.png"
+        )
 
 
 def main(sim: rebound.Simulation):
@@ -88,6 +98,7 @@ def main(sim: rebound.Simulation):
 
     return positions
 
+
 if __name__ == "__main__":
     # Set up the siMUlation
     sim = rebound.Simulation()
@@ -95,10 +106,11 @@ if __name__ == "__main__":
     sim.units = ("AU", "yr", "Msun")
 
     particule_creation(sim)
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/startingsystemview.png")
+    rebound.OrbitPlot(sim, color=True).fig.savefig(
+        f"plots/Lagrange/startingsystemview.png"
+    )
 
     positions = main(sim)
-    
 
     graph(positions)
     rebound_plot(sim)
