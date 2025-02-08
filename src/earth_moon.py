@@ -16,7 +16,7 @@ def main(sim: rebound.Simulation):
     #op_sun = rebound.OrbitPlot(sim, particles = [1],  unitlabel="[AU]", color=True, periastron=True)
     #op_sun = rebound.OrbitPlot(sim)
     op_earth_moon = rebound.OrbitPlot(sim,particles= [1], primary=0 , show_primary=True, unitlabel="[AU]", color=True, periastron=True) #fig=op_sun.fig, ax = op_sun.ax,)
-    op_earth_moon.fig.savefig(f"plots/start")
+    op_earth_moon.fig.savefig(f"plots/start.png")
     for i in range(10):
         print(sim.t)
         sim.integrate(sim.t + 0.1)
