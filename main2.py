@@ -1,17 +1,16 @@
-import rebound
-import numpy as np
 import matplotlib.pyplot as plt
-import reboundx.constants
-from tqdm import tqdm
-from scipy.optimize import fsolve
+import numpy as np
+import rebound
 import reboundx
-#from numba import njit
+import reboundx.constants
+from scipy.optimize import fsolve
+from tqdm import tqdm
 
-from src import general_relativity, newtonian
+# import threading
 
 # Constants for the Sun-Earth system
 G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
-C = reboundx.constants.C # Speed of light in AU/yr
+C = reboundx.constants.C  # Speed of light in AU/yr
 M_SUN = 1.0  # Mass of the Sun in solar masses
 M_EARTH = 3.003e-6  # Earth mass in solar masses
 A_EARTH = 1.0  # Earth's semi-major axis (1 AU)
@@ -21,8 +20,6 @@ MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 C2_INV = 1 / C**2  # Store 1/c² for later use
 MUminus = 1 - MU
 sqrt3 = np.sqrt(3) / 2
-
-
 
 
 def mapper(object: tuple):
@@ -40,6 +37,7 @@ L5 = mapper((A_EARTH * np.cos(np.pi / 3), -A_EARTH * np.sin(np.pi / 3), 0))
 lagrange_points = [L1, L2, L3, L4, L5]
 """
 
+
 def lagrange_eq(x, L_type):
     term1 = MU / (x - MU) ** 2
     term2 = MUminus / (x + MUminus) ** 2
@@ -50,9 +48,22 @@ def lagrange_eq(x, L_type):
     elif L_type == "L3":
         return x + MU - term1 - term2
 
-d_L1g = fsolve(lagrange_eq, 0.99, args=("L1"))[0]
-d_L2g = fsolve(lagrange_eq, 1.01, args=("L2"))[0]
-d_L3g = fsolve(lagrange_eq, -1.01, args=("L3"))[0]
+d_Lg = {'L1': None, 'L2': None, 'L3': None}
+
+def threaded_fsolve(func, x0: float, args: tuple[str]):
+    d_Lg [args[0]]= fsolve(lagrange_eq, 0.99, args=("L1"))[0]
+
+#d_L1g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, 0.99, ("L1")))
+#d_L2g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, 1.01, ("L2")))
+#d_L3g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, -1.01, ("L3")))
+
+#d_L1g_thread.start()
+#d_L2g_thread.start()
+#d_L3g_thread.start()
+
+#d_L1g = fsolve(lagrange_eq, 0.99, args=("L1"))[0]
+#d_L2g = fsolve(lagrange_eq, 1.01, args=("L2"))[0]
+#d_L3g = fsolve(lagrange_eq, -1.01, args=("L3"))[0]
 
 particules_number = 7
 
@@ -62,7 +73,6 @@ def particule_creation(sim: rebound.Simulation):
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
     # Add the Earth
 
-    
     vitesse = np.sqrt(G * M_SUN / A_EARTH)
     sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse, vz=0)
 
@@ -71,25 +81,21 @@ def particule_creation(sim: rebound.Simulation):
         sim.add(x=L[0], y=L[1], z=L[2], vx=0, vy=np.sqrt(G * M_SUN / A_EARTH), vz=0)
     """
 
+    """
     dx, dy, dz = A_EARTH, 0, 0
 
     r = np.sqrt(dx**2 + dy**2 + dz**2)
-    
-    bary_x = MU * A_EARTH
-    bary_y = 0
-    bary_z = 0
-    
+
+    bary_pos = np.array([MU * A_EARTH, 0, 0])
+
     angle_L4 = np.pi / 3  # Add 60 degrees (pi/3 radians)
 
-    vitesse_cos= vitesse * np.cos(angle_L4)
+    vitesse_cos = vitesse * np.cos(angle_L4)
     vitesse_sin = vitesse * np.sin(angle_L4)
-    L4: tuple[float, float, float] = (
-        bary_x + r * np.cos(angle_L4),
-        bary_y + r * np.sin(angle_L4),
-        bary_z
-    )
+    L4: tuple[float, float, float] = bary_pos + r * np.array([vitesse_cos, vitesse_sin, 0])
+    """
 
-    sim.add(m = 1e-4, a=1, Omega=np.pi/3)
+    sim.add(m=1e-4, a=1, Omega=np.pi / 3)
 
 def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, float]]:
     """
@@ -140,7 +146,6 @@ def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, floa
     # Convert back to tuples if needed
     return [tuple(L1), tuple(L2), tuple(L3), tuple(L4), tuple(L5)]
 
-
 def graph(positions: dict):
     # Plot the results
     plt.figure(figsize=(10, 10))
@@ -184,23 +189,12 @@ def rebound_plot(sim):
     for i in range(2, particules_number):
         rebound.OrbitPlot(sim, particles=[1, i], primary=0, color=True).fig.savefig(
             f"plots/Lagrange/object_{i}.png"
-    )
+        )
 
 
 def main(sim: rebound.Simulation):
-    def relativity_correction(reb_sim):
-        general_relativity(sim)
-
-    def newtonian_correction(reb_sim):
-        newtonian(sim)
-
-    # Attach the force function to Rebound
-    #sim.additional_forces = relativity_correction
-    sim.integrator = "whfast"#"ias15"  # High-accuracy integrator
-
-
     # Integrate and track positions
-    times = np.linspace(0, 50000, 1000)  # 1 years, 500 steps
+    times = np.linspace(0, 50000, 1000)  # 50000 years, 1000 steps
     positions: dict[int, list[tuple[float, float, float]]] = {
         i: [] for i in range(particules_number)
     }
@@ -227,20 +221,23 @@ if __name__ == "__main__":
     # Set up the siMUlation
     sim = rebound.Simulation()
     sim.move_to_hel()
-    #sim.move_to_com()
+    # sim.move_to_com()
     sim.units = ("AU", "yr", "Msun")
+    sim.integrator = "whfast"
 
     rebx = reboundx.Extras(sim)
     gr = rebx.load_force("gr")
-    gr.params['c'] = C
+    gr.params["c"] = C
     rebx.add_force(gr)
 
     particule_creation(sim)
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/startingsystemview.png")
+    rebound.OrbitPlot(sim, color=True).fig.savefig(
+        f"plots/Lagrange/startingsystemview.png"
+    )
 
     positions = main(sim)
 
     rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
 
-    #graph(positions)
-    #rebound_plot(sim)
+    # graph(positions)
+    # rebound_plot(sim)
