@@ -1,15 +1,17 @@
 import rebound
-import numpy as np
+import dpnp as np
 import matplotlib.pyplot as plt
+import reboundx.constants
 from tqdm import tqdm
 from scipy.optimize import fsolve
 import reboundx
+from numba import njit
 
 from src import general_relativity, newtonian
 
 # Constants for the Sun-Earth system
 G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
-C = reboundx.c  # Speed of light in AU/yr
+C = reboundx.constants.C # Speed of light in AU/yr
 M_SUN = 1.0  # Mass of the Sun in solar masses
 M_EARTH = 3.003e-6  # Earth mass in solar masses
 A_EARTH = 1.0  # Earth's semi-major axis (1 AU)
@@ -19,6 +21,8 @@ MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 C2_INV = 1 / C**2  # Store 1/c² for later use
 MUminus = 1 - MU
 sqrt3 = np.sqrt(3) / 2
+
+
 
 
 def mapper(object: tuple):
@@ -74,7 +78,6 @@ def particule_creation(sim: rebound.Simulation):
     bary_x = MU * A_EARTH
     bary_y = 0
     bary_z = 0
-
     
     angle_L4 = np.pi / 3  # Add 60 degrees (pi/3 radians)
 
@@ -86,73 +89,58 @@ def particule_creation(sim: rebound.Simulation):
         bary_z
     )
 
-    #sim.add(m = 1e-30, x=L4[0], y = L4[1], z = L4[2], vx = vitesse*np.sin(np.pi /3), vy = vitesse*np.cos(np.pi /3), vz = 0)
+    sim.add(m = 1e-4, a=1, Omega=np.pi/3)
 
-
-def compute_lagrange_points(
-    sun_pos, earth_pos
-) -> list[tuple[float, float, float]]:
+@njit
+def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, float]]:
     """
     Computes the positions of the five Lagrange points dynamically based on the Sun and Earth's positions.
 
     Parameters:
-    sun   -> Rebound particle representing the Sun. 
-    earth -> Rebound particle representing the Earth.
+    sun_pos   -> Tuple representing the Sun's position (x, y, z).
+    earth_pos -> Tuple representing the Earth's position (x, y, z).
 
     Returns:
-    Dictionary containing positions of L1, L2, L3, L4, and L5.
+    List containing positions of L1, L2, L3, L4, and L5.
     """
     MU = M_EARTH / (M_SUN + M_EARTH)
     MUminus = 1 - MU
 
-    # Extract positions and masses
-    x1, y1, z1 = sun_pos
-    x2, y2, z2 = earth_pos
+    # Convert to NumPy arrays for vectorized operations
+    sun_pos = np.array(sun_pos)
+    earth_pos = np.array(earth_pos)
 
-    # some global computation to aoid redundency
-    dx, dy, dz = x2 - x1, y2 - y1, z2 - z1
+    # Vectorized difference for Earth-Sun
+    delta = earth_pos - sun_pos
+    r = np.linalg.norm(delta)  # Earth-Sun distance
+    angle = np.arctan2(delta[1], delta[0])  # Angle of the Earth-Sun vector in radians
 
-    # Compute the Earth-Sun distance
-    r = np.sqrt(dx**2 + dy**2 + dz**2)
-    angle = np.arctan2(dy, dx)  # Angle of the Earth-Sun vector in radians
+    # Barycenter computation
+    bary_pos = MUminus * sun_pos + MU * earth_pos
 
-    # Center of Mass (Barycenter)
-    bary_x = MUminus * x1 + MU * x2
-    bary_y = MUminus * y1 + MU * y2
-    bary_z = MUminus * z1 + MU * z2
+    # Precompute cos and sin values
+    cos_angle = np.cos(angle)
+    sin_angle = np.sin(angle)
 
-    #
-    cos = np.cos(angle)
-    sin = np.sin(angle)
+    # L1 and L2 computations (reusing cos_angle and sin_angle)
+    offset = 0.01
+    L1 = bary_pos + (r + offset) * np.array([cos_angle, sin_angle, 0])
+    L2 = bary_pos + (r - offset) * np.array([cos_angle, sin_angle, 0])
 
-    # Transform to real positions in space
-    L1: tuple[float, float, float] = (bary_x + (r + 0.01) * cos, bary_y + (r + 0.01) * sin, bary_z)
-    L2: tuple[float, float, float] = (bary_x + (r - 0.01) * cos, bary_y + (r - 0.01) * sin, bary_z)
+    # L3 computation (180 degrees opposite)
+    L3 = bary_pos + r * np.array([-cos_angle, -sin_angle, 0])
 
-    angle_L3 = angle + np.pi
-    L3: tuple[float, float, float] = (
-        bary_x + r * np.cos(angle_L3), 
-        bary_y + r * np.sin(angle_L3), 
-        bary_z
-        )
+    # L4 (60 degrees ahead) and L5 (60 degrees behind)
+    angle_offset = np.pi / 3  # 60 degrees in radians
+    cos_L4, sin_L4 = np.cos(angle + angle_offset), np.sin(angle + angle_offset)
+    cos_L5, sin_L5 = np.cos(angle - angle_offset), np.sin(angle - angle_offset)
 
-    # Rotation matrix for L4 (60 degrees counterclockwise)
-    angle_L4 = angle + np.pi / 3  # Add 60 degrees (pi/3 radians)
-    L4: tuple[float, float, float] = (
-        bary_x + r * np.cos(angle_L4),
-        bary_y + r * np.sin(angle_L4),
-        bary_z
-    )
+    L4 = bary_pos + r * np.array([cos_L4, sin_L4, 0])
+    L5 = bary_pos + r * np.array([cos_L5, sin_L5, 0])
 
-    # Rotation matrix for L5 (-60 degrees clockwise)
-    angle_L5 = angle - np.pi / 3  # Subtract 60 degrees (-pi/3 radians)
-    L5: tuple[float, float, float] = (
-        bary_x + r * np.cos(angle_L5),
-        bary_y + r * np.sin(angle_L5),
-        bary_z,
-    )
+    # Convert back to tuples if needed
+    return [tuple(L1), tuple(L2), tuple(L3), tuple(L4), tuple(L5)]
 
-    return [L1, L2, L3, L4, L5]
 
 
 def graph(positions: dict):
@@ -187,6 +175,7 @@ def graph(positions: dict):
     plt.grid()
     plt.axis("equal")
     plt.show()
+    plt.savefig("test.png")
 
 
 def rebound_plot(sim):
@@ -208,12 +197,12 @@ def main(sim: rebound.Simulation):
         newtonian(sim)
 
     # Attach the force function to Rebound
-    sim.additional_forces = relativity_correction
-    sim.integrator = "ias15"  # High-accuracy integrator
+    #sim.additional_forces = relativity_correction
+    sim.integrator = "whfast"#"ias15"  # High-accuracy integrator
 
 
     # Integrate and track positions
-    times = np.linspace(0, 1, 100000)  # 1 years, 500 steps
+    times = np.linspace(0, 50000, 1000)  # 1 years, 500 steps
     positions: dict[int, list[tuple[float, float, float]]] = {
         i: [] for i in range(particules_number)
     }
@@ -239,11 +228,13 @@ def main(sim: rebound.Simulation):
 if __name__ == "__main__":
     # Set up the siMUlation
     sim = rebound.Simulation()
-    sim.move_to_com()
+    sim.move_to_hel()
+    #sim.move_to_com()
     sim.units = ("AU", "yr", "Msun")
 
     rebx = reboundx.Extras(sim)
     gr = rebx.load_force("gr")
+    gr.params['c'] = C
     rebx.add_force(gr)
 
     particule_creation(sim)
@@ -253,5 +244,5 @@ if __name__ == "__main__":
 
     rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
 
-    graph(positions)
+    #graph(positions)
     #rebound_plot(sim)
