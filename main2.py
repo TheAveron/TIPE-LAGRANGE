@@ -1,12 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import rebound
 import reboundx
 import reboundx.constants
-from scipy.optimize import fsolve
 from tqdm import tqdm
-
-# import threading
 
 # Constants for the Sun-Earth system
 G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
@@ -26,45 +22,6 @@ def mapper(object: tuple):
     return tuple(map(float, object))
 
 
-"""
-# Approximate Lagrange point locations
-L1 = mapper((A_EARTH * (1 - (MU / 3) ** (1 / 3)), 0, 0))
-L2 = mapper((A_EARTH * (1 + (MU / 3) ** (1 / 3)), 0, 0))
-L3 = mapper((-A_EARTH * (1 + 5 * MU / 12), 0, 0))
-L4 = mapper((A_EARTH * np.cos(np.pi / 3), A_EARTH * np.sin(np.pi / 3), 0))
-L5 = mapper((A_EARTH * np.cos(np.pi / 3), -A_EARTH * np.sin(np.pi / 3), 0))
-
-lagrange_points = [L1, L2, L3, L4, L5]
-"""
-
-
-def lagrange_eq(x, L_type):
-    term1 = MU / (x - MU) ** 2
-    term2 = MUminus / (x + MUminus) ** 2
-    if L_type == "L1":
-        return x - MUminus - term1 + term2
-    elif L_type == "L2":
-        return x - MUminus - term1 - term2
-    elif L_type == "L3":
-        return x + MU - term1 - term2
-
-d_Lg = {'L1': None, 'L2': None, 'L3': None}
-
-def threaded_fsolve(func, x0: float, args: tuple[str]):
-    d_Lg [args[0]]= fsolve(lagrange_eq, 0.99, args=("L1"))[0]
-
-#d_L1g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, 0.99, ("L1")))
-#d_L2g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, 1.01, ("L2")))
-#d_L3g_thread = threading.Thread(target=threaded_fsolve, args=(lagrange_eq, -1.01, ("L3")))
-
-#d_L1g_thread.start()
-#d_L2g_thread.start()
-#d_L3g_thread.start()
-
-#d_L1g = fsolve(lagrange_eq, 0.99, args=("L1"))[0]
-#d_L2g = fsolve(lagrange_eq, 1.01, args=("L2"))[0]
-#d_L3g = fsolve(lagrange_eq, -1.01, args=("L3"))[0]
-
 particules_number = 7
 
 
@@ -76,26 +33,8 @@ def particule_creation(sim: rebound.Simulation):
     vitesse = np.sqrt(G * M_SUN / A_EARTH)
     sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse, vz=0)
 
-    # Add test particles at the Lagrange points
-    """for L in lagrange_points:
-        sim.add(x=L[0], y=L[1], z=L[2], vx=0, vy=np.sqrt(G * M_SUN / A_EARTH), vz=0)
-    """
-
-    """
-    dx, dy, dz = A_EARTH, 0, 0
-
-    r = np.sqrt(dx**2 + dy**2 + dz**2)
-
-    bary_pos = np.array([MU * A_EARTH, 0, 0])
-
-    angle_L4 = np.pi / 3  # Add 60 degrees (pi/3 radians)
-
-    vitesse_cos = vitesse * np.cos(angle_L4)
-    vitesse_sin = vitesse * np.sin(angle_L4)
-    L4: tuple[float, float, float] = bary_pos + r * np.array([vitesse_cos, vitesse_sin, 0])
-    """
-
     sim.add(m=1e-4, a=1, Omega=np.pi / 3)
+
 
 def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, float]]:
     """
@@ -146,51 +85,6 @@ def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, floa
     # Convert back to tuples if needed
     return [tuple(L1), tuple(L2), tuple(L3), tuple(L4), tuple(L5)]
 
-def graph(positions: dict):
-    # Plot the results
-    plt.figure(figsize=(10, 10))
-    # ax = fig.add_subplot(111, projection="3d")
-    # print(positions)
-
-    colors = ["red", "green", "orange", "purple", "cyan"]
-    for ind, color in enumerate(colors[2:]):
-        pos = np.array(positions[ind + 1])
-        plt.plot(pos[:, 0], pos[:, 1], color=color, label=f"L{ind+1}")
-
-    # Earth
-    pos_earth = np.array(positions[1])
-    plt.plot(pos_earth[1:, 0], pos_earth[1:, 1], color="blue", label=f"Earth")
-
-    # Sun
-    plt.scatter(0, 0, color="yellow", s=200, label="Sun")
-
-    """
-    # L4
-    #print(positions[5])
-    pos = np.array(positions[5])
-    plt.plot(pos[:, 0], pos[:, 1], color=colors[3], label=f"L4")
-    """
-
-    plt.xlabel("x (AU)")
-    plt.ylabel("y (AU)")
-    plt.title("Earth-Sun System with Lagrange Points (GR Corrected)")
-    plt.legend()
-    plt.grid()
-    plt.axis("equal")
-    plt.show()
-    plt.savefig("test.png")
-
-
-def rebound_plot(sim):
-    rebound.OrbitPlot(sim, particles=[1], color=True).fig.savefig(
-        f"plots/Lagrange/Earthview.png"
-    )
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
-    for i in range(2, particules_number):
-        rebound.OrbitPlot(sim, particles=[1, i], primary=0, color=True).fig.savefig(
-            f"plots/Lagrange/object_{i}.png"
-        )
-
 
 def main(sim: rebound.Simulation):
     # Integrate and track positions
@@ -218,10 +112,9 @@ def main(sim: rebound.Simulation):
 
 
 if __name__ == "__main__":
-    # Set up the siMUlation
+
     sim = rebound.Simulation()
     sim.move_to_hel()
-    # sim.move_to_com()
     sim.units = ("AU", "yr", "Msun")
     sim.integrator = "whfast"
 
@@ -238,6 +131,3 @@ if __name__ == "__main__":
     positions = main(sim)
 
     rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
-
-    # graph(positions)
-    # rebound_plot(sim)
