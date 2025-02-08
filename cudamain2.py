@@ -1,17 +1,19 @@
-import rebound
-import numpy as np
+import math
+
+import dpnp as np
 import matplotlib.pyplot as plt
-import reboundx.constants
-from tqdm import tqdm
-from scipy.optimize import fsolve
+import rebound
 import reboundx
-#from numba import njit
+import reboundx.constants
+from numba import cuda
+from scipy.optimize import fsolve
+from tqdm import tqdm
 
 from src import general_relativity, newtonian
 
 # Constants for the Sun-Earth system
-G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
-C = reboundx.constants.C # Speed of light in AU/yr
+G = 4 * math.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
+C = reboundx.constants.C  # Speed of light in AU/yr
 M_SUN = 1.0  # Mass of the Sun in solar masses
 M_EARTH = 3.003e-6  # Earth mass in solar masses
 A_EARTH = 1.0  # Earth's semi-major axis (1 AU)
@@ -20,9 +22,7 @@ MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 # Variations of constants for better running time
 C2_INV = 1 / C**2  # Store 1/c² for later use
 MUminus = 1 - MU
-sqrt3 = np.sqrt(3) / 2
-
-
+sqrt3 = math.sqrt(3) / 2
 
 
 def mapper(object: tuple):
@@ -40,6 +40,7 @@ L5 = mapper((A_EARTH * np.cos(np.pi / 3), -A_EARTH * np.sin(np.pi / 3), 0))
 lagrange_points = [L1, L2, L3, L4, L5]
 """
 
+
 def lagrange_eq(x, L_type):
     term1 = MU / (x - MU) ** 2
     term2 = MUminus / (x + MUminus) ** 2
@@ -50,6 +51,7 @@ def lagrange_eq(x, L_type):
     elif L_type == "L3":
         return x + MU - term1 - term2
 
+
 d_L1g = fsolve(lagrange_eq, 0.99, args=("L1"))[0]
 d_L2g = fsolve(lagrange_eq, 1.01, args=("L2"))[0]
 d_L3g = fsolve(lagrange_eq, -1.01, args=("L3"))[0]
@@ -58,39 +60,39 @@ particules_number = 7
 
 
 def particule_creation(sim: rebound.Simulation):
-    # Add the Sun
+    # Add the Sun at the origin
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
-    # Add the Earth
 
-    
-    vitesse = np.sqrt(G * M_SUN / A_EARTH)
+    # Add the Earth
+    vitesse = math.sqrt(G * M_SUN / A_EARTH)
     sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse, vz=0)
 
-    # Add test particles at the Lagrange points
-    """for L in lagrange_points:
-        sim.add(x=L[0], y=L[1], z=L[2], vx=0, vy=np.sqrt(G * M_SUN / A_EARTH), vz=0)
-    """
-
-    dx, dy, dz = A_EARTH, 0, 0
-
-    r = np.sqrt(dx**2 + dy**2 + dz**2)
-    
-    bary_x = MU * A_EARTH
+    # Precompute some values to avoid redundancy
+    r = A_EARTH  # Earth-Sun distance is constant
+    bary_x = MU * A_EARTH  # Barycenter coordinates
     bary_y = 0
     bary_z = 0
-    
-    angle_L4 = np.pi / 3  # Add 60 degrees (pi/3 radians)
 
-    vitesse_cos= vitesse * np.cos(angle_L4)
-    vitesse_sin = vitesse * np.sin(angle_L4)
-    L4: tuple[float, float, float] = (
-        bary_x + r * np.cos(angle_L4),
-        bary_y + r * np.sin(angle_L4),
-        bary_z
-    )
+    angle_L4 = math.pi / 3  # 60 degrees in radians
+    cos_L4 = math.cos(angle_L4)
+    sin_L4 = math.sin(angle_L4)
 
-    sim.add(m = 1e-4, a=1, Omega=np.pi/3)
+    # Precompute velocity components for L4 to avoid repeated computation
+    vitesse_cos = vitesse * cos_L4
+    vitesse_sin = vitesse * sin_L4
 
+    # Calculate L4 position
+    L4 = mapper(bary_x + r * np.array([cos_L4, sin_L4, 0]))
+
+    # Add a test particle at L4 (with a small mass, e.g., 1e-4)
+    sim.add(m=1e-4, x=L4[0], y=L4[1], z=L4[2], vx=vitesse_cos, vy=vitesse_sin, vz=0)
+
+    # You can similarly add more test particles at other Lagrange points (L1, L2, L3, L5) by following the same process.
+
+    sim.add(m=1e-4, a=1, Omega=math.pi / 3)
+
+
+@cuda.jit
 def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, float]]:
     """
     Computes the positions of the five Lagrange points dynamically based on the Sun and Earth's positions.
@@ -111,7 +113,7 @@ def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, floa
 
     # Vectorized difference for Earth-Sun
     delta = earth_pos - sun_pos
-    r = np.linalg.norm(delta)  # Earth-Sun distance
+    r = delta  # Earth-Sun distance
     angle = np.arctan2(delta[1], delta[0])  # Angle of the Earth-Sun vector in radians
 
     # Barycenter computation
@@ -138,7 +140,7 @@ def compute_lagrange_points(sun_pos, earth_pos) -> list[tuple[float, float, floa
     L5 = bary_pos + r * np.array([cos_L5, sin_L5, 0])
 
     # Convert back to tuples if needed
-    return [tuple(L1), tuple(L2), tuple(L3), tuple(L4), tuple(L5)]
+    return [mapper(L1), mapper(L2), mapper(L3), mapper(L4), mapper(L5)]
 
 
 def graph(positions: dict):
@@ -184,7 +186,7 @@ def rebound_plot(sim):
     for i in range(2, particules_number):
         rebound.OrbitPlot(sim, particles=[1, i], primary=0, color=True).fig.savefig(
             f"plots/Lagrange/object_{i}.png"
-    )
+        )
 
 
 def main(sim: rebound.Simulation):
@@ -195,9 +197,8 @@ def main(sim: rebound.Simulation):
         newtonian(sim)
 
     # Attach the force function to Rebound
-    #sim.additional_forces = relativity_correction
-    sim.integrator = "whfast"#"ias15"  # High-accuracy integrator
-
+    # sim.additional_forces = relativity_correction
+    sim.integrator = "whfast"  # "ias15"  # High-accuracy integrator
 
     # Integrate and track positions
     times = np.linspace(0, 50000, 1000)  # 1 years, 500 steps
@@ -227,20 +228,22 @@ if __name__ == "__main__":
     # Set up the siMUlation
     sim = rebound.Simulation()
     sim.move_to_hel()
-    #sim.move_to_com()
+    # sim.move_to_com()
     sim.units = ("AU", "yr", "Msun")
 
     rebx = reboundx.Extras(sim)
     gr = rebx.load_force("gr")
-    gr.params['c'] = C
+    gr.params["c"] = C
     rebx.add_force(gr)
 
     particule_creation(sim)
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/startingsystemview.png")
+    rebound.OrbitPlot(sim, color=True).fig.savefig(
+        f"plots/Lagrange/startingsystemview.png"
+    )
 
     positions = main(sim)
 
     rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
 
-    #graph(positions)
-    #rebound_plot(sim)
+    # graph(positions)
+    # rebound_plot(sim)
