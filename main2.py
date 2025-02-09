@@ -83,7 +83,7 @@ def compute_lagrange_points(sun_pos, earth_pos):
 
 def main(sim: rebound.Simulation):
     # Integrate and track positions
-    times = np.linspace(0, 100, 10000)  # 50000 years, 1000 steps
+    times = np.linspace(0, 100, 10000)  # 100 years, 10000 steps
     positions = {i: [] for i in range(particules_number)}
     
     # Precompute values that don't change
