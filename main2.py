@@ -26,7 +26,6 @@ def mapper(object: tuple):
 
 particules_number = 7
 
-
 def particule_creation(sim: rebound.Simulation):
     # Add the Sun
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
@@ -34,9 +33,8 @@ def particule_creation(sim: rebound.Simulation):
     vitesse = np.sqrt(G * M_SUN / A_EARTH)
     sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse, vz=0)
 
-    sim.add(m=1e-3, a=1, Omega=np.pi / 3)
-    sim.add(m=1e-3, a=1, Omega=- np.pi / 3)
-
+    #sim.add(m=1e-3, a=1, Omega=np.pi / 3)
+    sim.add(m=1e-30, a=1, Omega=(- np.pi / 3 + np.pi / 10))
 
 @njit
 def compute_lagrange_points(sun_pos, earth_pos):
@@ -81,41 +79,62 @@ def compute_lagrange_points(sun_pos, earth_pos):
     return [L1, L2, L3, L4, L5]
 
 
+config1 = """
+2 mass at L4 and L5
+
+m=1e-3
+setps = 10000
+total_time = 100"""
+
 def main(sim: rebound.Simulation):
-    # Integrate and track positions
-    times = np.linspace(0, 100, 10000)  # 100 years, 10000 steps
-    positions = {i: [] for i in range(particules_number)}
+
+    steps = 1000
+    total_time = 1000
+
+    div = total_time/steps
+
+    times: list[float] = []
+    k = 0
+    for _ in range(steps):
+        k += div
+        times.append(round(k, 2))
+
+    #positions = {i: [] for i in range(particules_number)}
     
     # Precompute values that don't change
-    sun = sim.particles[0]
-    earth = sim.particles[1]
+    #sun = sim.particles[0]
+    #earth = sim.particles[1]
+
+    plot = rebound.OrbitPlot(sim, color=True, figsize=(10, 10))
 
     for t in tqdm(times):
-        sim.integrate(t)
+        sim.integrate(t, exact_finish_time=total_time)
 
-        sun_coord = (sun.x, sun.y, sun.z)
-        earth_coord = (earth.x, earth.y, earth.z)
+        #sun_coord = (sun.x, sun.y, sun.z)
+        #earth_coord = (earth.x, earth.y, earth.z)
 
-        positions[0].append(sun_coord)
-        positions[1].append(earth_coord)
+        #positions[0].append(sun_coord)
+        #positions[1].append(earth_coord)
 
-        rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/timelapse/epoch-{t}.png")
+        plot.update()
+        plot.fig.savefig(f"plots/Lagrange/timelapse-no-mass/frame{int(t*10):05d}.png")
 
         # Lagrange points computation
-        L_points = compute_lagrange_points(sun_coord, earth_coord)
-        for i, p in enumerate(L_points):
-            positions[i + 2].append(tuple(p))
+        #L_points = compute_lagrange_points(sun_coord, earth_coord)
+        #for i, p in enumerate(L_points):
+            #positions[i + 2].append(tuple(p))
 
-    return positions
+    #return positions
 
 
 if __name__ == "__main__":
 
     sim = rebound.Simulation()
+    #sim.threads = 8
     sim.move_to_hel()
     sim.units = ("AU", "yr", "Msun")
     sim.integrator = "whfast"
-    sim.threads = 8
+
 
     rebx = reboundx.Extras(sim)
     gr = rebx.load_force("gr")
@@ -123,8 +142,8 @@ if __name__ == "__main__":
     rebx.add_force(gr)
 
     particule_creation(sim)
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/startingsystemview.png")
+    rebound.OrbitPlot(sim, color=True, figsize=(10, 10), Narc=256).fig.savefig(f"plots/Lagrange/startingsystemview.png")
 
     positions = main(sim)
 
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
+    rebound.OrbitPlot(sim, color=True, figsize=(10, 10), Narc=256).fig.savefig(f"plots/Lagrange/systemview.png")
