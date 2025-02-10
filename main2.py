@@ -14,6 +14,10 @@ M_EARTH = 3.003e-6  # Earth mass in solar masses
 A_EARTH = 1.0  # Earth's semi-major axis (1 AU)
 MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 
+
+M_MARS = 0.107 * M_EARTH
+A_MARS = 1.52368055
+
 # Variations of constants for better running time
 C2_INV = 1 / C**2  # Store 1/c² for later use
 MUminus = 1 - MU
@@ -30,11 +34,14 @@ def particule_creation(sim: rebound.Simulation):
     # Add the Sun
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
     # Add the Earth
-    vitesse = np.sqrt(G * M_SUN / A_EARTH)
-    sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse, vz=0)
+    vitesse_earth = np.sqrt(G * M_SUN / A_EARTH)
+    vitesse_mars = np.sqrt(G * M_SUN / A_MARS)
+
+    sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse_earth, vz=0)
+    sim.add(m=M_MARS, x=A_MARS, y=0, z=0, vy = vitesse_mars, vz = 0)
 
     #sim.add(m=1e-3, a=1, Omega=np.pi / 3)
-    sim.add(m=1e-30, a=1, Omega=(- np.pi / 3 + np.pi / 10))
+    #sim.add(m=1e-30, a=1, Omega=(- np.pi / 3 + np.pi / 10))
 
 @njit
 def compute_lagrange_points(sun_pos, earth_pos):
@@ -88,7 +95,7 @@ total_time = 100"""
 
 def main(sim: rebound.Simulation):
 
-    steps = 1000
+    steps = 10000
     total_time = 1000
 
     div = total_time/steps
@@ -117,7 +124,7 @@ def main(sim: rebound.Simulation):
         #positions[1].append(earth_coord)
 
         plot.update()
-        plot.fig.savefig(f"plots/Lagrange/timelapse-no-mass/frame{int(t*10):05d}.png")
+        plot.fig.savefig(f"plots/Lagrange/timelapse-mars/frame{int(t*100):06d}.png")
 
         # Lagrange points computation
         #L_points = compute_lagrange_points(sun_coord, earth_coord)
