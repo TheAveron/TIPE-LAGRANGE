@@ -1,116 +1,156 @@
-from turtle import color
-
-import matplotlib.pyplot as plt
 import numpy as np
 import rebound
+import reboundx
+import reboundx.constants
 from tqdm import tqdm
 
-from src import general_relativity, newtonian
+from numba import njit
 
 # Constants for the Sun-Earth system
 G = 4 * np.pi**2  # AU^3 / (yr^2 * Msun), gravitational constant
-C = 63239.7263  # Speed of light in AU/yr
+C = reboundx.constants.C  # Speed of light in AU/yr
 M_SUN = 1.0  # Mass of the Sun in solar masses
 M_EARTH = 3.003e-6  # Earth mass in solar masses
 A_EARTH = 1.0  # Earth's semi-major axis (1 AU)
 MU = M_EARTH / (M_SUN + M_EARTH)  # Reduced mass
 
+
+M_MARS = 0.107 * M_EARTH
+A_MARS = 1.52368055
+
 # Variations of constants for better running time
 C2_INV = 1 / C**2  # Store 1/c² for later use
+MUminus = 1 - MU
+sqrt3 = np.sqrt(3) / 2
 
 
 def mapper(object: tuple):
     return tuple(map(float, object))
 
 
-# Approximate Lagrange point locations
-L1 = mapper((A_EARTH * (1 - (MU / 3) ** (1 / 3)), 0, 0))
-L2 = mapper((A_EARTH * (1 + (MU / 3) ** (1 / 3)), 0, 0))
-L3 = mapper((-A_EARTH * (1 + 5 * MU / 12), 0, 0))
-L4 = mapper((A_EARTH * np.cos(np.pi / 3), A_EARTH * np.sin(np.pi / 3), 0))
-L5 = mapper((A_EARTH * np.cos(np.pi / 3), -A_EARTH * np.sin(np.pi / 3), 0))
-
-lagrange_points = [L1, L2, L3, L4, L5]
-
 particules_number = 7
-
 
 def particule_creation(sim: rebound.Simulation):
     # Add the Sun
     sim.add(m=M_SUN, x=0, y=0, z=0, vx=0, vy=0, vz=0)
     # Add the Earth
-    sim.add(m=M_EARTH, a=A_EARTH, primary=sim.particles[0])
+    vitesse_earth = np.sqrt(G * M_SUN / A_EARTH)
+    vitesse_mars = np.sqrt(G * M_SUN / A_MARS)
 
-    # Add test particles at the Lagrange points
-    for L in lagrange_points:
-        sim.add(x=L[0], y=L[1], z=L[2], vx=0, vy=np.sqrt(G * M_SUN / A_EARTH), vz=0)
+    sim.add(m=M_EARTH, x=A_EARTH, y=0, z=0, vx=0, vy=vitesse_earth, vz=0)
+    sim.add(m=M_MARS, x=A_MARS, y=0, z=0, vy = vitesse_mars, vz = 0)
+
+    #sim.add(m=1e-3, a=1, Omega=np.pi / 3)
+    #sim.add(m=1e-30, a=1, Omega=(- np.pi / 3 + np.pi / 10))
+
+@njit
+def compute_lagrange_points(sun_pos, earth_pos):
+    """
+    Computes the positions of the five Lagrange points dynamically based on the Sun and Earth's positions.
+    """
+    MU = M_EARTH / (M_SUN + M_EARTH)
+    MUminus = 1 - MU
+
+    # Convert to NumPy arrays for vectorized operations
+    sun_pos = np.array(sun_pos, dtype=np.float64)
+    earth_pos = np.array(earth_pos, dtype=np.float64)
+
+    # Vectorized difference for Earth-Sun
+    delta = earth_pos - sun_pos
+    r = np.linalg.norm(delta)  # Earth-Sun distance
+    angle = np.arctan2(delta[1], delta[0])  # Angle of the Earth-Sun vector in radians
+
+    # Barycenter computation
+    bary_pos = MUminus * sun_pos + MU * earth_pos
+
+    # Precompute cos and sin values
+    cos_angle = np.cos(angle)
+    sin_angle = np.sin(angle)
+
+    # L1 and L2 computations (reusing cos_angle and sin_angle)
+    offset = 0.01
+    L1 = bary_pos + (r + offset) * np.array([cos_angle, sin_angle, 0])
+    L2 = bary_pos + (r - offset) * np.array([cos_angle, sin_angle, 0])
+
+    # L3 computation (180 degrees opposite)
+    L3 = bary_pos + r * np.array([-cos_angle, -sin_angle, 0])
+
+    # L4 (60 degrees ahead) and L5 (60 degrees behind)
+    angle_offset = np.pi / 3  # 60 degrees in radians
+    cos_L4, sin_L4 = np.cos(angle + angle_offset), np.sin(angle + angle_offset)
+    cos_L5, sin_L5 = np.cos(angle - angle_offset), np.sin(angle - angle_offset)
+
+    L4 = bary_pos + r * np.array([cos_L4, sin_L4, 0])
+    L5 = bary_pos + r * np.array([cos_L5, sin_L5, 0])
+
+    return [L1, L2, L3, L4, L5]
 
 
-def graph(positions: dict):
-    # Plot the results
-    plt.figure(figsize=(10, 10))
-    for i in range(2, particules_number):  # Ignore Sun and Earth
-        pos = np.array(positions[i])
-        plt.plot(pos[:, 0], pos[:, 1], label=f"L{i-1}")
+config1 = """
+2 mass at L4 and L5
 
-    # Mark Sun and Earth
-    plt.scatter(0, 0, color="yellow", s=200, label="Sun")
-    plt.scatter(A_EARTH, 0, color="blue", s=100, label="Earth")
-
-    plt.xlabel("x (AU)")
-    plt.ylabel("y (AU)")
-    plt.title("Earth-Sun System with Lagrange Points (GR Corrected)")
-    plt.legend()
-    plt.grid()
-    plt.axis("equal")
-    plt.show()
-
-
-def rebound_plot(sim):
-    rebound.OrbitPlot(sim, particles=[1], color=True).fig.savefig(
-        f"plots/Lagrange/Earthview.png"
-    )
-    rebound.OrbitPlot(sim, color=True).fig.savefig(f"plots/Lagrange/systemview.png")
-    for i in range(2, particules_number):
-        rebound.OrbitPlot(sim, particles=[1, i], primary=0, color=True).fig.savefig(
-            f"plots/Lagrange/L{i-1}.png"
-        )
-
+m=1e-3
+setps = 10000
+total_time = 100"""
 
 def main(sim: rebound.Simulation):
-    def relativity_correction(reb_sim):
-        general_relativity(sim)
 
-    def newtonian_correction(reb_sim):
-        newtonian(sim)
+    steps = 10000
+    total_time = 1000
 
-    # Attach the force function to Rebound
-    sim.additional_forces = relativity_correction
-    sim.integrator = "ias15"  # High-accuracy integrator
+    div = total_time/steps
 
-    # Integrate and track positions
-    times = np.linspace(0, 1, 100000)  # 1 years, 500 steps
-    positions = {i: [] for i in range(particules_number)}
+    times: list[float] = []
+    k = 0
+    for _ in range(steps):
+        k += div
+        times.append(round(k, 2))
+
+    #positions = {i: [] for i in range(particules_number)}
+    
+    # Precompute values that don't change
+    #sun = sim.particles[0]
+    #earth = sim.particles[1]
+
+    plot = rebound.OrbitPlot(sim, color=True, figsize=(10, 10))
+
     for t in tqdm(times):
-        sim.integrate(t)
-        for i, p in enumerate(sim.particles):
-            positions[i].append((p.x, p.y))
+        sim.integrate(t, exact_finish_time=total_time)
 
-    return positions
+        #sun_coord = (sun.x, sun.y, sun.z)
+        #earth_coord = (earth.x, earth.y, earth.z)
+
+        #positions[0].append(sun_coord)
+        #positions[1].append(earth_coord)
+
+        plot.update()
+        plot.fig.savefig(f"plots/Lagrange/timelapse-mars/frame{int(t*100):06d}.png")
+
+        # Lagrange points computation
+        #L_points = compute_lagrange_points(sun_coord, earth_coord)
+        #for i, p in enumerate(L_points):
+            #positions[i + 2].append(tuple(p))
+
+    #return positions
 
 
 if __name__ == "__main__":
-    # Set up the siMUlation
+
     sim = rebound.Simulation()
-    sim.move_to_com()
+    #sim.threads = 8
+    sim.move_to_hel()
     sim.units = ("AU", "yr", "Msun")
+    sim.integrator = "whfast"
+
+
+    rebx = reboundx.Extras(sim)
+    gr = rebx.load_force("gr")
+    gr.params["c"] = C
+    rebx.add_force(gr)
 
     particule_creation(sim)
-    rebound.OrbitPlot(sim, color=True).fig.savefig(
-        f"plots/Lagrange/startingsystemview.png"
-    )
+    rebound.OrbitPlot(sim, color=True, figsize=(10, 10), Narc=256).fig.savefig(f"plots/Lagrange/startingsystemview.png")
 
     positions = main(sim)
 
-    graph(positions)
-    rebound_plot(sim)
+    rebound.OrbitPlot(sim, color=True, figsize=(10, 10), Narc=256).fig.savefig(f"plots/Lagrange/systemview.png")
