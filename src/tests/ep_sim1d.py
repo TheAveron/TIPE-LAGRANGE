@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+from profiler import profile
 
 G = 6.67e-11
 Ms = 1.989e30  # Mass of the Sun (kg)
@@ -9,23 +9,38 @@ Mjwst = 6500
 r = 1.5e6
 R = 1.5e8
 
-x = np.linspace(-150_000_000, 0, 1000)
-y = np.linspace(-1_500_000, 1500000, 1000)
+K1 = - G * Mt * Mjwst
+K2 = - G * Ms * Mjwst
+K3 = - 1 / 2 * Mjwst * G * Ms
+
+x = np.linspace(-R, R, 1000)
+y = np.linspace(-R, R, 1000)
 
 X, Y = np.meshgrid(x, y)
-EP = (
-    G * Mt * Mjwst / np.sqrt((r + X) ** 2 + Y**2)
-    + G * Ms * Mjwst / np.sqrt((R + r + X) ** 2 + Y**2)
-    - 1 / 2 * Mjwst * G * Ms / (R**3) * ((R + r + X) ** 2 - y**2)
-)
+
+#@profile
+def calcul_EP(X, Y):
+    """EP = (
+        K1 / np.sqrt((r + X) ** 2 + Y**2)
+        + K2 / np.sqrt((R + r + X) ** 2 + Y**2)
+        + K3 / (R**3) * ((R + r + X) ** 2 - Y**2)
+    )"""
+
+    EP = K1 * np.sqrt((X + R)**2 + Y ** 2) + K2 * np.sqrt(X ** 2 + Y ** 2) + K3 * (X ** 2 + Y ** 2)
+
+    return EP/100
+
+EP = calcul_EP(X, Y)
 
 fig = plt.figure()
 left, bottom, width, height = 0.1, 0.1, 0.8, 0.8
 ax = fig.add_axes([left, bottom, width, height])
 
 cp = ax.contourf(X, Y, EP)
-#ax.clabel(cp, inline=True, fontsize=9)
-ax.set_title('Contour Plot')
-ax.set_xlabel('Axe Terre-Soleil (m)')
-ax.set_ylabel('y (cm)')
+# ax.clabel(cp, inline=True, fontsize=9)
+plt.plot(0, 0, marker="x", color="red", markersize=5, label="Point de Lagrange")
+
+ax.set_title("Contour Plot")
+ax.set_xlabel("Axe Terre-Soleil (10e6 m)")
+ax.set_ylabel("y (m)")
 plt.show()
