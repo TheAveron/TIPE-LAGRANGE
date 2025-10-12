@@ -22,3 +22,7 @@ x_moon = x_earth - d_em
 
 # Angular velocity of the rotating frame (based on Earth orbit)
 omega = sqrt(G * (M_earth + M_sun) / d_se**3)
+
+
+M_JWST = 6500
+S_JWST = -4e5
