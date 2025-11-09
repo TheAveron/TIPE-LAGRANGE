@@ -12,43 +12,46 @@ def trilinear_interpolation(
     Retourne (ax, ay, az).
     """
     Nx, Ny, Nz, _ = field.shape
-    dx = (x_vals[-1] - x_vals[0]) / (Nx - 1)
-    dy = (y_vals[-1] - y_vals[0]) / (Ny - 1)
-    dz = (z_vals[-1] - z_vals[0]) / (Nz - 1)
+    dx_grid = (x_vals[-1] - x_vals[0]) / (Nx - 1)
+    dy_grid = (y_vals[-1] - y_vals[0]) / (Ny - 1)
+    dz_grid = (z_vals[-1] - z_vals[0]) / (Nz - 1)
 
     # Indices des coins
-    i = int((x - x_vals[0]) / dx)
-    j = int((y - y_vals[0]) / dy)
-    k = int((z - z_vals[0]) / dz)
+    i = int((x - x_vals[0]) / dx_grid)
+    j = int((y - y_vals[0]) / dy_grid)
+    k = int((z - z_vals[0]) / dz_grid)
 
-    if i < 0 or i >= Nx - 1 or j < 0 or j >= Ny - 1 or k < 0 or k >= Nz - 1:
-        return 0, 0, 0  # hors grille → pas d'accélération
+    if i < 0:
+        i = 0
+    if i > Nx - 2:
+        i = Nx - 2
+    if j < 0:
+        j = 0
+    if j > Ny - 2:
+        j = Ny - 2
+    if k < 0:
+        k = 0
+    if k > Nz - 2:
+        k = Nz - 2
 
-    # Poids relatifs
-    tx = (x - x_vals[i]) / dx
-    ty = (y - y_vals[j]) / dy
-    tz = (z - z_vals[k]) / dz
+    # Poids relatifs (tx, ty, tz dans [0,1])
+    tx = (x - x_vals[i]) / dx_grid
+    ty = (y - y_vals[j]) / dy_grid
+    tz = (z - z_vals[k]) / dz_grid
 
     ax = ay = az = 0
     for di in range(2):
         for dj in range(2):
             for dk in range(2):
                 w = (
-                    ((1 - tx) if di == 0 else tx)
-                    * ((1 - ty) if dj == 0 else ty)
-                    * ((1 - tz) if dk == 0 else tz)
+                    ((1.0 - tx) if di == 0 else tx)
+                    * ((1.0 - ty) if dj == 0 else ty)
+                    * ((1.0 - tz) if dk == 0 else tz)
                 )
                 f = field[i + di, j + dj, k + dk]
                 ax += w * f[0]
                 ay += w * f[1]
                 az += w * f[2]
-
-    if n > 0 and (t_max / (n * dt)) % 1_900_000 == 0:
-        a_correction = 300
-        alpha = np.arctan2(y, pos_L2 - x)
-        cor_x = a_correction * np.cos(alpha)
-        cor_y = a_correction * np.sin(alpha)
-        return ax + cor_x, ay - cor_y, az
 
     return ax, ay, az
 
@@ -70,12 +73,32 @@ def integrate_particle(
     t_max=100.0,
 ):
     """
-    Intègre une particule dans le champ d'accélération avec RK4 (rapide avec Numba).
+    Intègre une particule dans le champ d'accélération avec RK4.
+    Station-keeping modélisé par impulsions (delta-v) tous les 21 jours,
+    appliquées comme de petites impulsions instantanées sur la vitesse.
     """
+
     dt = t_max / nsteps
 
-    x, y, z = x0, y0, z0
-    vx, vy, vz = vx0, vy0, vz0
+    # --- parametres de Station-keeping ---
+    period_time_sk = 21.0 * 86400.0  # 21 days in seconds (SK cadence)
+    period_steps = max(1, int(period_time_sk / dt))
+
+    # Realistic JWST SK magnitude: ~0.1 - 0.5 m/s per SK ; default 0.3 m/s
+    dv_sk = 0.3  # m/s, adjustable
+
+    # Heuristic weights to combine "position" and "vx-reduction" directions
+    # weight_position: importance of pushing along the position component (stable eigenvector approx)
+    # weight_vx: importance of reducing the x-velocity (aiming for zero x-velocity at crossing)
+    weight_position = 0.5
+    weight_vx = 0.5
+
+    x = x0
+    y = y0
+    z = z0
+    vx = vx0
+    vy = vy0
+    vz = vz0
 
     x_list = np.empty(nsteps + 1)
     y_list = np.empty(nsteps + 1)
@@ -83,7 +106,11 @@ def integrate_particle(
     x_list[0], y_list[0], z_list[0] = x, y, z
 
     demi_temps = 0.5 * dt
-    sixieme_temps = dt / 6
+    sixieme_temps = dt / 6.0
+
+    # For crossing detection (XZ plane is y==0)
+    y_prev = y
+    crossing_count = 0
 
     for n in range(nsteps):
         # RK4 : on calcule accélération plusieurs fois
@@ -146,13 +173,60 @@ def integrate_particle(
         kx4, ky4, kz4 = vx + dt * ax3, vy + dt * ay3, vz + dt * az3
 
         # Mise à jour (RK4)
-        x += sixieme_temps * (kx1 + 2 * kx2 + 2 * kx3 + kx4)
-        y += sixieme_temps * (ky1 + 2 * ky2 + 2 * ky3 + ky4)
-        z += sixieme_temps * (kz1 + 2 * kz2 + 2 * kz3 + kz4)
+        x += sixieme_temps * (kx1 + 2.0 * kx2 + 2.0 * kx3 + kx4)
+        y += sixieme_temps * (ky1 + 2.0 * ky2 + 2.0 * ky3 + ky4)
+        z += sixieme_temps * (kz1 + 2.0 * kz2 + 2.0 * kz3 + kz4)
 
-        vx += sixieme_temps * (ax1 + 2 * ax2 + 2 * ax3 + ax4)
-        vy += sixieme_temps * (ay1 + 2 * ay2 + 2 * ay3 + ay4)
-        vz += sixieme_temps * (az1 + 2 * az2 + 2 * az3 + az4)
+        vx += sixieme_temps * (ax1 + 2.0 * ax2 + 2.0 * ax3 + ax4)
+        vy += sixieme_temps * (ay1 + 2.0 * ay2 + 2.0 * ay3 + ay4)
+        vz += sixieme_temps * (az1 + 2.0 * az2 + 2.0 * az3 + az4)
+
+        # --- Crossing detection (XZ plane: y == 0) ---
+        # Detect sign change from previous step -> crossing
+        if (y_prev <= 0.0 and y > 0.0) or (y_prev >= 0.0 and y < 0.0):
+            crossing_count += 1
+        y_prev = y
+
+        # --- Station-keeping impulse every period_steps (≈21 days) ---
+        if (n + 1) % period_steps == 0:
+            # Position-based direction (approximation of position component of stable eigenvector)
+            dx_pos = pos_L2 - x
+            dy_pos = -y
+            dz_pos = -z
+            norm_pos = np.sqrt(dx_pos * dx_pos + dy_pos * dy_pos + dz_pos * dz_pos)
+            if norm_pos < 1e-12:
+                norm_pos = 1.0
+            ux_pos = dx_pos / norm_pos
+            uy_pos = dy_pos / norm_pos
+            uz_pos = dz_pos / norm_pos
+
+            # Velocity reduction direction: attempt to reduce x-velocity (toward zero x-velocity)
+            # take projection of current velocity and create a direction that reduces vx preferentially
+            # we use -sign(vx) along x and small components along y,z to avoid purely axis-aligned burns
+            vx_sign = 1.0
+            if vx > 0.0:
+                vx_sign = 1.0
+            else:
+                vx_sign = -1.0
+            # direction to reduce vx is roughly (-sign(vx), 0, 0) in inertial frame
+            ux_v = -vx_sign
+            uy_v = 0.0
+            uz_v = 0.0
+            # normalize combined direction (weighted)
+            comb_x = weight_position * ux_pos + weight_vx * ux_v
+            comb_y = weight_position * uy_pos + weight_vx * uy_v
+            comb_z = weight_position * uz_pos + weight_vx * uz_v
+            comb_norm = np.sqrt(comb_x * comb_x + comb_y * comb_y + comb_z * comb_z)
+            if comb_norm < 1e-12:
+                comb_norm = 1.0
+            ux = comb_x / comb_norm
+            uy = comb_y / comb_norm
+            uz = comb_z / comb_norm
+
+            # Apply delta-v impulse along composed direction
+            vx += dv_sk * ux
+            vy += dv_sk * uy
+            vz += dv_sk * uz
 
         x_list[n + 1], y_list[n + 1], z_list[n + 1] = x, y, z
 

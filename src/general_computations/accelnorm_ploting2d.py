@@ -9,85 +9,94 @@ import numpy as np
 
 
 def simulate_particle(X, Y, Z, a_norm: np.ndarray, a_total_vec, lagrange_points):
-    # Exemple : partir légèrement décalé de L2
-    x_L2 = lagrange_points[1]  # position en x de L2
-    x0, y0, z0 = x_L2 + 250_000_000, 0, 200_000  # 250 000 km plus loin
-    vx0, vy0 = 0, 3e2
+    x_L2 = lagrange_points[1]
+    x0 , y0, z0= x_L2 + 4.0e8, 1.0e5, -1.0e8  # -100 000 km in z (m)
+
+    T_orbit = 168.0 * 86400.0  # secondes (~168 days)
+    r0 = 4.0e8  # metres (400000 km)
+    v0_norm = (
+        2.0 * np.pi * r0 / T_orbit
+    )  # vitesse tangentiel (~173 m/s pour r0=4e8)
+
+    dx = x0 - x_L2
+    dy = y0
+    norm_xy = np.sqrt(dx * dx + dy * dy)
+    if norm_xy < 1e-12:
+        norm_xy = 1.0
+    ux_t = -dy / norm_xy  # rotaion de 90 deg pour l'approximation tangentielle
+    uy_t = dx / norm_xy
+    uz_t = 0.0
+
+    vx0 = v0_norm * ux_t
+    vy0 = v0_norm * uy_t
+    vz0 = v0_norm * uz_t
+
     Nx, Ny, Nz, _ = a_total_vec.shape
     x_vals = np.linspace(X.min(), X.max(), Nx)
     y_vals = np.linspace(Y.min(), Y.max(), Ny)
     z_vals = np.linspace(Z.min(), Z.max(), Nz)
 
-    x_list, y_list, _ = integrate_particle(
+    t_max = 3.0 * T_orbit # simulation de 3 orbites
+    nsteps = 200000 # Nombre de points
+
+    x_list, y_list, z_list = integrate_particle(
         x0,
         y0,
         z0,
         vx0,
         vy0,
-        0,
+        vz0,
         x_vals,
         y_vals,
         z_vals,
         a_total_vec,
-        lagrange_points[1],
-        nsteps=3 * 10_000_000,
-        t_max=10 * 1_900_000,
+        x_L2,
+        nsteps=nsteps,
+        t_max=t_max,
     )
+
+    del a_norm, a_total_vec
+    plot_traj(X, Y, x_list, y_list, z_list, lagrange_points)
+
+
+def plot_traj(X, Y, x_list, y_list, z_list, lagrange_points):
 
     fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot()
-
-    idz = a_norm.shape[2] // 2
-    a_norm_xy = a_norm[:, :, idz]
-
-    plt.contourf(
-        X[:, :, idz],
-        Y[:, :, idz],
-        log10(a_norm_xy),
-        levels=1000,
-        cmap="coolwarm",
-    )
-    plt.colorbar(label="log10(|acceleration|) [m/s²]")
+    ax = fig.add_subplot(projection="3d")
 
     ## Projection des points de Lagrange
-
     proj_x, proj_y, labels = project_lagrange_points(lagrange_points, plane="xy")
-    plt.scatter(proj_x, proj_y, color="grey", s=40)
-    for lx, ly, name in zip(proj_x, proj_y, labels):
-        plt.text(lx, ly, name, color="grey", ha="center", va="bottom")
+    ax.scatter(proj_x, proj_y, np.zeros_like(proj_x), color="grey", s=40)
 
-    ## Projection de la Terre
-    plt.scatter([x_earth], [0], color=["blue"], s=80)
-    plt.text(x_earth, 0, "Earth", color="blue", ha="right")
+    ## Projection de la Terre (utilise lagrange_points[0] comme approximation)
+    x_earth = lagrange_points[0]
+    ax.scatter([x_earth], [0.0], [0.0], color=["blue"], s=80)
 
-    ax.plot(x_list, y_list, color="red", label="Particule")
-    ax.scatter(x_list[0], y_list[0], color="red", s=60, marker="x", label="Départ")
+    ax.plot(x_list, y_list, z_list, color="red", label="Particule")
+    ax.scatter(
+        [x_list[0]],
+        [y_list[0]],
+        [z_list[0]],
+        color="red",
+        s=60,
+        marker="x",
+        label="Départ",
+    )
 
     margin = 1e9
-
-    ax.set_xlim(lagrange_points[0] - margin, x_L2 + margin)
+    ax.set_xlim(lagrange_points[0] - margin / 1e5, lagrange_points[1] + margin)
     ax.set_ylim(-margin, margin)
+    ax.set_zlim(-margin, margin)
 
-    """
-    step = 1
-    plt.quiver(
-        X[::step, ::step, idz],
-        Y[::step, ::step, idz],
-        a_total_vec[0, ::step, ::step, idz],
-        a_total_vec[1, ::step, ::step, idz],
-        color="white",
-        scale=2e-3,
-        width=0.002,
-    )"""
+    plt.title("Trajectoire simulée (approx. JWST L2 halo & SK)")
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    ax.set_zlabel("z [m]")
 
-    plt.title("Champs d'accélération (Soleil-Terre) - Plan XY")
-    plt.xlabel("x [m]")
-    plt.ylabel("y [m]")
     plt.grid(False)
     plt.tight_layout()
-    ax.set_aspect("equal", adjustable="box")
-
-    plt.legend()
+    # note: set_aspect('equal') n'est pas supporté proprement sur Axes3D
+    plt.legend(loc="upper right")
     plt.show()
 
 
