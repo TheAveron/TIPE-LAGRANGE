@@ -10,7 +10,7 @@ import numpy as np
 
 def simulate_particle(X, Y, Z, a_norm: np.ndarray, a_total_vec, lagrange_points):
     x_L2 = lagrange_points[1]
-    x0 , y0, z0= x_L2 + 4.0e8, 1.0e5, -1.0e8  # -100 000 km in z (m)
+    x0 , y0, z0= x_L2 + 4.0e8, -1.0e5, -1.0e8  # -100 000 km in z (m)
 
     T_orbit = 168.0 * 86400.0  # secondes (~168 days)
     r0 = 4.0e8  # metres (400000 km)
@@ -69,8 +69,7 @@ def plot_traj(X, Y, x_list, y_list, z_list, lagrange_points):
     ax.scatter(proj_x, proj_y, np.zeros_like(proj_x), color="grey", s=40)
 
     ## Projection de la Terre (utilise lagrange_points[0] comme approximation)
-    x_earth = lagrange_points[0]
-    ax.scatter([x_earth], [0.0], [0.0], color=["blue"], s=80)
+    ax.scatter([x_earth], [0.0],[0.0], color=["blue"], s=80)
 
     ax.plot(x_list, y_list, z_list, color="red", label="Particule")
     ax.scatter(
@@ -84,7 +83,7 @@ def plot_traj(X, Y, x_list, y_list, z_list, lagrange_points):
     )
 
     margin = 1e9
-    ax.set_xlim(lagrange_points[0] - margin / 1e5, lagrange_points[1] + margin)
+    ax.set_xlim(lagrange_points[0] - margin / 4, lagrange_points[1] + margin)
     ax.set_ylim(-margin, margin)
     ax.set_zlim(-margin, margin)
 

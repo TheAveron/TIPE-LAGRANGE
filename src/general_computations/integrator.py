@@ -85,7 +85,7 @@ def integrate_particle(
     period_steps = max(1, int(period_time_sk / dt))
 
     # Realistic JWST SK magnitude: ~0.1 - 0.5 m/s per SK ; default 0.3 m/s
-    dv_sk = 0.3  # m/s, adjustable
+    dv_sk = 0.5  # m/s, adjustable
 
     # Heuristic weights to combine "position" and "vx-reduction" directions
     # weight_position: importance of pushing along the position component (stable eigenvector approx)
