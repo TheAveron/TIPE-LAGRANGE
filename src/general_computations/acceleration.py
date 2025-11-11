@@ -60,6 +60,7 @@ def compute_grav_accel_vec(X, Y, Z, x_body, y_body, M_body, z_body=0):
     az = -G * M_body * dz / r3
 
     correction = 1 + (3 * G * M_body) / (np.sqrt(r2 + 1e-20) * C**2)
+    print(ax[0])
 
     return np.array([ax * correction, ay * correction, az * correction])
 
@@ -89,7 +90,7 @@ def compute_total_accel(X, Y, Z, include_norm=True):
         return a_total / (a_norm * 10000)
 
 
-def compute_acceleration_norm(grid_size=1000, xy_lim=2e6) -> tuple[
+def compute_acceleration_norm(x,y,z) -> tuple[
     ndarray[Any, dtype[Any]],
     ndarray[Any, dtype[Any]],
     ndarray[Any, dtype[Any]],
@@ -98,9 +99,6 @@ def compute_acceleration_norm(grid_size=1000, xy_lim=2e6) -> tuple[
     """
     Creates grid and computes norm of the total acceleration.
     """
-    x = np.linspace(-xy_lim, +xy_lim, grid_size)
-    y = np.linspace(-xy_lim, +xy_lim, grid_size)
-    z = np.linspace(-xy_lim, +xy_lim, grid_size)
     X, Y, Z = np.meshgrid(x, y, z, indexing="ij")
     _, _, _, a_norm = compute_total_accel(X, Y, Z, include_norm=True)
     return X, Y, Z, a_norm
