@@ -1,5 +1,6 @@
 import numpy as np
 from tqdm import tqdm
+from numba import njit
 
 from dynamics import rotating_frame_acceleration
 
@@ -58,9 +59,7 @@ def trilinear_interpolation(x, y, z, x_vals, y_vals, z_vals, field):
     return ax, ay, az
 
 
-import numpy as np
-
-
+@njit
 def integrate_particle_rk4(r0, v0, dt, t_max=100.0):
     """
     Intègre une particule dans le champ gravitationnel de la Terre et du Soleil, avec les effets du référentiel tournant.
@@ -97,7 +96,7 @@ def integrate_particle_rk4(r0, v0, dt, t_max=100.0):
     r_list[0], v_list[0] = r, v
 
     # Intégration de la trajectoire par Runge-Kutta (RK4)
-    for n in tqdm(range(nsteps)):
+    for n in range(nsteps):
         # Calcul des accélérations à différents points selon la méthode RK4
         a1 = rotating_frame_acceleration(r, v)
         k1 = v

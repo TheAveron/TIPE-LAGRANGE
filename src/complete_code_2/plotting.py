@@ -29,13 +29,15 @@ def plot_trajectory_3d(traj, show_primaries=True):
     ax.set_ylabel("y (km)")
     ax.set_zlabel("z (km)")  # type: ignore
 
-    margin_neg = x_earth - 1e6
-    margin_pos = x_L2 + 1e6
+    marg = 1e6
 
-    ax.set_xlim(margin_neg, margin_pos)
-    ax.set_ylim(-1e5, 1e5)
+    margin_neg = x_earth - marg * 10
+    margin_pos = x_L2 + marg * 10
 
-    ax.set_zlim(-1e5, 1e5)  # type: ignore
+    # ax.set_xlim(margin_neg, margin_pos)
+    # ax.set_ylim(-marg, marg)
+
+    # ax.set_zlim(-marg, marg)  # type: ignore
 
     ax.legend()
     plt.show()
@@ -48,8 +50,10 @@ def plot_projections(traj):
 
     plt.figure()
     plt.plot(x, y, linewidth=0.8)
-    if x_L2 is not None:
-        plt.scatter([x_L2], [0], s=30, marker="*")
+
+    plt.scatter([x_L2], [0], s=30, marker="*")
+    plt.scatter([x_earth], [0], s=30, marker="o")
+
     plt.xlabel("x (km)")
     plt.ylabel("y (km)")
     plt.title("Projection XY")
@@ -58,8 +62,9 @@ def plot_projections(traj):
 
     plt.figure()
     plt.plot(x, z, linewidth=0.8)
-    if x_L2 is not None:
-        plt.scatter([x_L2], [0], s=30, marker="*")
+
+    plt.scatter([x_L2], [0], s=30, marker="*")
+    plt.scatter([x_earth], [0], s=30, marker="o")
     plt.xlabel("x (km)")
     plt.ylabel("z (km)")
     plt.title("Projection XZ")
@@ -68,6 +73,7 @@ def plot_projections(traj):
 
     plt.figure()
     plt.plot(y, z, linewidth=0.8)
+    plt.scatter([0], [0], s=30, marker="*")
     plt.xlabel("y (km)")
     plt.ylabel("z (km)")
     plt.title("Projection YZ")
