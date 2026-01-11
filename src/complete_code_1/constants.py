@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 # Gravitational constant (km^3 / kg / s^2)
 G = 6.67430e-20  # = 6.67430e-11 m^3/kg/s^2 converted to km^3/kg/s^2
 

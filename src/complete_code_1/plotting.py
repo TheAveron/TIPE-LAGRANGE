@@ -1,13 +1,13 @@
 # plotting.py
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
 
 # plotting.py additions (supplement)
 def plot_trajectory_3d(times, traj, x_L2=None, show_primaries=True):
-    from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
 
     x = traj[:, 0]
     y = traj[:, 1]

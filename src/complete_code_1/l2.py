@@ -3,7 +3,7 @@ We look for the colinear L2 point (on Sun-Earth line beyond Earth).
 """
 
 import numpy as np
-from constants import a, M_sun, M_earth, x_earth
+from constants import M_earth, M_sun, a, x_earth
 from dynamics import rotating_frame_acceleration
 
 

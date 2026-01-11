@@ -7,18 +7,17 @@ Save the above file sections into separate .py files in the same folder and run 
 # example_main.py
 import numpy as np
 from constants import DEFAULT_DT
-from l2 import compute_L2
-from station_keeping import run_station_keeping
-from plotting import plot_trajectory_3d, plot_projections, plot_dv_log
-from integrator import propagate_rk4
-
 from frames import inertial_to_rotating
+from integrator import propagate_rk4
+from l2 import compute_L2
+from plotting import plot_dv_log, plot_projections, plot_trajectory_3d
+from station_keeping import run_station_keeping
 
 
 def checks(state0):
-    from l2 import compute_L2, analytic_L2_distance_from_earth
+    from constants import a, x_earth, x_sun
     from dynamics import grav_acceleration
-    from constants import x_earth, x_sun, a
+    from l2 import analytic_L2_distance_from_earth, compute_L2
 
     print("=== SANITY CHECKS ===")
     print("Earth position x_earth =", x_earth)

@@ -1,9 +1,8 @@
-from constants import x_earth, d_em, x_sun, M_sun, M_earth, M_moon, omega
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-
+import numpy as np
 from acceleration import compute_grav_accel_vec
+from constants import M_earth, M_moon, M_sun, d_em, omega, x_earth, x_sun
+from matplotlib.colors import LogNorm
 from therocal_poisitions import compute_theorical_lagrangian_points
 
 

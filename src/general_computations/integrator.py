@@ -1,12 +1,10 @@
 # --- fonctions CR3BP / STM (hors Numba) ---
-import numpy as np
 import math
-from numba import njit
-from constants import G, M_sun, M_earth, d_se
 
 # --- fonctions CR3BP / STM (hors Numba) ---
 import numpy as np
-import math
+from constants import G, M_earth, M_sun, d_se
+from numba import njit
 
 # constantes physiques
 G = 6.67430e-11

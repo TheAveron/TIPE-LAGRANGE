@@ -1,11 +1,11 @@
 # full_jwst_l2_sim.py
 # D�pendances: numpy, math, numba, matplotlib
-import numpy as np
 import math
-from numba import njit
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import numpy as np
 from constants import x_earth
+from numba import njit
 
 # ----------------- Physical constants & normalization -----------------
 G = 6.67430e-11

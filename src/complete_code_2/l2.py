@@ -3,7 +3,7 @@ We look for the colinear L2 point (on Sun-Earth line beyond Earth).
 """
 
 import numpy as np
-from constants import a, M_sun, M_earth, x_earth
+from constants import M_earth, M_sun, a, x_earth
 from dynamics import rotating_frame_acceleration
 
 
@@ -29,7 +29,7 @@ def compute_L2(tol=1e-6, maxiter=60):
         r = np.array([x, 0.0, 0.0])
         v = np.zeros(3)
         # For equilibrium point in rotating frame with v=0, the net acceleration must be zero
-        a = rotating_frame_acceleration(r, v)
+        a = rotating_frame_acceleration(r, v, np.array([x_earth, 0.0, 0.0]))
         return a[0]  # x-component
 
     # numeric derivative

@@ -1,16 +1,13 @@
-import matplotlib.pyplot as plt
-from numpy import int64, log10, min, max, ndarray, float64
 from typing import Any
-from constants import x_earth, x_sun, x_moon
-from therocal_poisitions import compute_theorical_lagrangian_points
-from acceleration import compute_acceleration_norm, compute_acceleration_vect
-from integrator import (
-    integrate_particle,
-    nondim_params,
-    propagate_monodromy,
-    stable_eigenvector_from_monodromy,
-)
+
+import matplotlib.pyplot as plt
 import numpy as np
+from acceleration import compute_acceleration_norm, compute_acceleration_vect
+from constants import x_earth, x_moon, x_sun
+from integrator import (integrate_particle, nondim_params, propagate_monodromy,
+                        stable_eigenvector_from_monodromy)
+from numpy import float64, int64, log10, max, min, ndarray
+from therocal_poisitions import compute_theorical_lagrangian_points
 
 
 # --- simulate_particle: compute stable eigenvector (CR3BP) before integration ---

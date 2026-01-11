@@ -9,8 +9,7 @@ where a_grav = sum of gravitational accelerations from primaries.
 """
 
 import numpy as np
-from constants import G, M_sun, M_earth, x_sun, x_earth, omega_vec
-
+from constants import G, M_earth, M_sun, omega_vec, x_earth, x_sun
 
 r_sun = np.array([x_sun, 0.0, 0.0])
 r_earth = np.array([x_earth, 0.0, 0.0])

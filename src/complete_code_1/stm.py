@@ -3,15 +3,8 @@ Integrates augmented state [r, v, Phi(6x6)] with RK4 using the same dynamics as 
 """
 
 import numpy as np
-from dynamics import (
-    rotating_frame_acceleration,
-    r_sun,
-    r_earth,
-    omega_vec,
-    G,
-    M_sun,
-    M_earth,
-)
+from dynamics import (G, M_earth, M_sun, omega_vec, r_earth, r_sun,
+                      rotating_frame_acceleration)
 
 
 def cross_product_matrix(v):

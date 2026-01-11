@@ -1,10 +1,8 @@
 import numpy as np
-
 from integrator import integrate_particle_rk4
-from plotting import plot_trajectory_3d, plot_projections
-from profiler import profile_with_memory
-
 from l2 import compute_L2
+from plotting import plot_projections, plot_trajectory_3d
+from profiler import profile_with_memory
 
 x_L2 = compute_L2()
 

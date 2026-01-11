@@ -9,7 +9,7 @@ This is a pragmatic, numerically straightforward implementation.
 """
 
 import numpy as np
-from integrator import propagate_rk4, detect_xz_crossings
+from integrator import detect_xz_crossings, propagate_rk4
 
 
 def apply_impulse(state, dv_vec):

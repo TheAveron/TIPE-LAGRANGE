@@ -1,5 +1,5 @@
 import numpy as np
-from constants import M_earth, d_se, x_earth, x_sun, total_mass
+from constants import M_earth, d_se, total_mass, x_earth, x_sun
 
 
 def compute_theorical_lagrangian_points():

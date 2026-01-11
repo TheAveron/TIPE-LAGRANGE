@@ -1,8 +1,8 @@
 import numpy as np
-from tqdm import tqdm
-from numba import njit
-
+from constants import x_earth
 from dynamics import rotating_frame_acceleration
+from numba import njit
+from tqdm import tqdm
 
 
 def trilinear_interpolation(x, y, z, x_vals, y_vals, z_vals, field):
@@ -90,6 +90,8 @@ def integrate_particle_rk4(r0, v0, dt, t_max=100.0):
     r = r0
     v = v0
 
+    r_earth = np.array([x_earth, 0.0, 0.0])
+
     # Listes pour stocker les positions et vitesses
     r_list = np.zeros((nsteps + 1, 3))
     v_list = np.zeros((nsteps + 1, 3))
@@ -98,16 +100,20 @@ def integrate_particle_rk4(r0, v0, dt, t_max=100.0):
     # Intégration de la trajectoire par Runge-Kutta (RK4)
     for n in range(nsteps):
         # Calcul des accélérations à différents points selon la méthode RK4
-        a1 = rotating_frame_acceleration(r, v)
+        a1 = rotating_frame_acceleration(r, v, r_earth)
         k1 = v
 
-        a2 = rotating_frame_acceleration(r + demi_temps * k1, v + demi_temps * a1)
+        a2 = rotating_frame_acceleration(
+            r + demi_temps * k1, v + demi_temps * a1, r_earth
+        )
         k2 = v + demi_temps * a1
 
-        a3 = rotating_frame_acceleration(r + demi_temps * k2, v + demi_temps * a2)
+        a3 = rotating_frame_acceleration(
+            r + demi_temps * k2, v + demi_temps * a2, r_earth
+        )
         k3 = v + demi_temps * a2
 
-        a4 = rotating_frame_acceleration(r + dt * k3, v + dt * a3)
+        a4 = rotating_frame_acceleration(r + dt * k3, v + dt * a3, r_earth)
         k4 = v + dt * a3
 
         # Mise à jour des positions et vitesses avec les poids RK4

@@ -3,9 +3,9 @@ and run correction cycles using corrector.find_dv_for_vx_zero.
 """
 
 import numpy as np
+from corrector import apply_impulse, find_dv_for_vx_zero
+from integrator import detect_xz_crossings, propagate_rk4
 from stm import integrate_stm
-from integrator import propagate_rk4, detect_xz_crossings
-from corrector import find_dv_for_vx_zero, apply_impulse
 
 
 def compute_stable_eigenvector(state0, t0, tf, dt):

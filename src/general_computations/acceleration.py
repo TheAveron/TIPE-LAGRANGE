@@ -1,10 +1,10 @@
-import numpy as np
-from numpy import ndarray, dtype
 from typing import Any
-from constants import G, C, M_earth, M_sun, x_earth, x_sun, omega, M_moon, x_moon
 
-
+import numpy as np
+from constants import (C, G, M_earth, M_moon, M_sun, omega, x_earth, x_moon,
+                       x_sun)
 from numba import njit, prange
+from numpy import dtype, ndarray
 
 
 @njit(fastmath=True, parallel=True)
@@ -90,7 +90,7 @@ def compute_total_accel(X, Y, Z, include_norm=True):
         return a_total / (a_norm * 10000)
 
 
-def compute_acceleration_norm(x,y,z) -> tuple[
+def compute_acceleration_norm(x, y, z) -> tuple[
     ndarray[Any, dtype[Any]],
     ndarray[Any, dtype[Any]],
     ndarray[Any, dtype[Any]],

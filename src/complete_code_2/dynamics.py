@@ -9,16 +9,14 @@ where a_grav = sum of gravitational accelerations from primaries.
 """
 
 import numpy as np
-from constants import EPS, G, M_sun, M_earth, x_sun, x_earth, omega_vec
+from constants import EPS, G, M_earth, M_sun, omega_vec, x_earth, x_sun
 from numba import njit
 
-
 r_sun = np.array([x_sun, 0.0, 0.0])
-r_earth = np.array([x_earth, 0.0, 0.0])
 
 
 @njit
-def grav_acceleration(r):
+def grav_acceleration(r, r_earth):
     """Compute gravitational acceleration from Sun and Earth at position r (km, in rotating frame).
     Returns a vector (km/s^2).
     """
@@ -40,11 +38,11 @@ def grav_acceleration(r):
 
 
 @njit
-def rotating_frame_acceleration(r, v):
+def rotating_frame_acceleration(r, v, r_earth):
     """Total acceleration in rotating frame (km/s^2) for state (r, v).
     Implements: r_ddot = a_grav - 2*omega x v - omega x (omega x r)
     """
-    a_grav = grav_acceleration(r)
+    a_grav = grav_acceleration(r, r_earth)
     coriolis = -2.0 * np.cross(omega_vec, v)
     centrifugal = -np.cross(omega_vec, np.cross(omega_vec, r))
     return a_grav + coriolis + centrifugal

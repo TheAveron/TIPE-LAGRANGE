@@ -1,10 +1,7 @@
 # frames.py
-import numpy as np
-from constants import omega_vec, x_sun, x_earth
-
 # frames.py
 import numpy as np
-from constants import omega_vec, x_sun, x_earth, a, M_sun, M_earth
+from constants import M_earth, M_sun, a, omega_vec, x_earth, x_sun
 
 
 def rotation_matrix_theta(theta):
