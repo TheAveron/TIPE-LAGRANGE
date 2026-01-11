@@ -9,7 +9,7 @@ def acceleration(pos, v) -> float:
 
 def integrate_particle_rk4(pos0, v0, dt, t_max=100.0):
     """
-    Intègre la position d'une particule soumise à un champt gravitationnel
+    Intègre la position d'une particule soumise à une acceleration donnée.
     Utilise la méthode Runge-Kutta d'ordre 4 (RK4) pour l'intégration.
 
     Arguments:
