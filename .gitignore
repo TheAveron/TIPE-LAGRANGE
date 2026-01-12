@@ -160,3 +160,9 @@ cython_debug/
 #.idea/
 
 *.png
+
+.VSCodeCounter/
+
+# SPICE ephemeris files (large — keep out of git)
+/Simulation_finale/data/spice/
+/Simulation_finale/data/spice/*
