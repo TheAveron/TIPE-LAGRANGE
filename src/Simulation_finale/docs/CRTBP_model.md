@@ -23,7 +23,7 @@ Ce modèle est principalement destiné à l'analyse qualitative (Lagrange points
 
 Initialisation :
 
-```
+```python
 from simulation.dynamics_conf import DynamicsConfig, DynamicsModel
 from simulation.CRTBP_model_dynamics import CRTBP3Body
 
@@ -41,7 +41,7 @@ Points importants :
 - `equations_of_motion(t, state)` : retourne la dérivée d'état `[vx, vy, vz, ax, ay, az]`.
 - `compute_acceleration(t, state)` : calcule l'accélération en composants.
 - `jacobi_constant(state)` : calcule la constante de Jacobi (invariant du CRTBP pur).
-- `effective_potential(x,y,z)` : potentiel effectif U* utile pour tracer les courbes de Hill.
+- `effective_potential(x,y,z)` : potentiel effectif U*, utile pour tracer les courbes de Hill.
 
 ## Limites et recommandations
 
@@ -52,5 +52,6 @@ Points importants :
 
 - Potentiel effectif (normalisé) : U* = (1−μ)/r1 + μ/r2 + ½(x² + y²)
 - Équations du mouvement dans le référentiel tournant : r̈ − 2Ω × ṙ − Ω × (Ω × r) = −∇U
+- Constante de Jacobi :  C = 2U* - v²
 
 Voir les commentaires dans le fichier source pour la dérivation complète.

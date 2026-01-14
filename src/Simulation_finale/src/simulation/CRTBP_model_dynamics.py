@@ -113,6 +113,28 @@ class CRTBP3Body(BaseDynamics):
             self.x1 *= self.R
             self.x2 *= self.R
 
+    def effective_potential(self, state: StateVector) -> float:
+        """
+        Calcule le potentiel effectif U* en un point.
+
+        Args:
+            x, y, z: Coordonnées du point
+
+        Returns:
+            U* (pseudo-potentiel)
+        """
+        x, y = state[0], state[1]
+
+        r1, r2 = distance_to_primary(state, self.x1, self.x2)
+
+        if self.normalized:
+            U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
+        else:
+            GM_1, GM_2 = self.GM_1, self.GM_2
+            U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
+
+        return U_star
+
     def equations_of_motion(self, t: float, state: StateVector) -> StateVector:
         """
         Équations du mouvement dans le référentiel tournant.
@@ -177,52 +199,38 @@ class CRTBP3Body(BaseDynamics):
         r1, r2 = distance_to_primary(state, self.x1, self.x2, self.normalized)
         x, y, z, vx, vy, vz = state
 
+        omega = self.omega
+        GM_1, GM_2 = self.GM_1, self.GM_2
+
         if self.normalized:
-            # Équations normalisées (ω = 1)
+            omega = 1
 
-            # ∂U*/∂x = -(1-μ)(x-x₁)/r₁³ - μ(x-x₂)/r₂³ + x
-            dU_dx = (
-                -(1.0 - self.mu) * (x - self.x1) / r1**3
-                - self.mu * (x - self.x2) / r2**3
-                + x
-            )
+            # Quand on utilise les notations normalisées, on a G = 1, et les masses μ et 1-μ
+            GM_1 = 1.0 - self.mu
+            GM_2 = self.mu
 
-            # ∂U*/∂y = -(1-μ)y/r₁³ - μy/r₂³ + y
-            dU_dy = -(1.0 - self.mu) * y / r1**3 - self.mu * y / r2**3 + y
+        omega_sq = omega**2
+        inv_cube_r1_gm = -GM_1 / r1**3
+        inv_cube_r2_gm = -GM_2 / r2**3
 
-            # ∂U*/∂z = -(1-μ)z/r₁³ - μz/r₂³
-            dU_dz = -(1.0 - self.mu) * z / r1**3 - self.mu * z / r2**3
+        # ∂U*/∂x = -G×m₁(x-x₁)/r₁³ - G×m₂(x-x₂)/r₂³ + ω²x
+        dU_dx = (
+            (x - self.x1) * inv_cube_r1_gm
+            + (x - self.x2) * inv_cube_r2_gm
+            + omega_sq * x
+        )
 
-            # Force de Coriolis : -2Ω × v = -2[0,0,1] × [vx,vy,vz] = [-2vy, 2vx, 0]
-            # (Le signe est négatif, donc on a +2vy en x et -2vx en y)
-            ax = dU_dx + 2.0 * vy
-            ay = dU_dy - 2.0 * vx
-            az = dU_dz
+        # ∂U*/∂y = -G×m₁y/r₁³ - G×m₂y/r₂³ + ω²y
+        dU_dy = y * inv_cube_r1_gm + y * inv_cube_r2_gm + omega_sq * y
 
-        else:
-            # Équations non normalisées (unités SI)
-            omega_sq = self.omega**2
+        # ∂U*/∂z = -G×m₁z/r₁³ - G×m₂z/r₂³
+        dU_dz = z * inv_cube_r1_gm + z * inv_cube_r2_gm
 
-            # Masses effectives
-            GM_1, GM_2 = self.GM_1, self.GM_2
-
-            # ∂U*/∂x = -G×m₁(x-x₁)/r₁³ - G×m₂(x-x₂)/r₂³ + ω²x
-            dU_dx = (
-                -GM_1 * (x - self.x1) / r1**3
-                - GM_2 * (x - self.x2) / r2**3
-                + omega_sq * x
-            )
-
-            # ∂U*/∂y = -G×m₁y/r₁³ - G×m₂y/r₂³ + ω²y
-            dU_dy = -GM_1 * y / r1**3 - GM_2 * y / r2**3 + omega_sq * y
-
-            # ∂U*/∂z = -G×m₁z/r₁³ - G×m₂z/r₂³
-            dU_dz = -GM_1 * z / r1**3 - GM_2 * z / r2**3
-
-            # Force de Coriolis : -2Ω × v
-            ax = dU_dx + 2.0 * self.omega * vy
-            ay = dU_dy - 2.0 * self.omega * vx
-            az = dU_dz
+        # Force de Coriolis : -2Ω × v = -2[0,0,1] × [vx,vy,vz] = [-2vy, 2vx, 0]
+        # (Le signe est négatif, donc on a +2vy en x et -2vx en y)
+        ax = dU_dx + 2.0 * omega * vy
+        ay = dU_dy - 2.0 * omega * vx
+        az = dU_dz
 
         return np.array([ax, ay, az])
 
@@ -230,19 +238,9 @@ class CRTBP3Body(BaseDynamics):
         """
         Calcule la constante de Jacobi (intégrale du mouvement dans CRTBP).
 
-        Formule:
-            C = 2U* - v²
-
-        où:
-            U* = (1-μ)/r₁ + μ/r₂ + ½(x² + y²)  (normalisé)
-            v² = vx² + vy² + vz²
-
         Propriété:
             Dans le CRTBP pur, C est constant le long d'une trajectoire.
             Une variation de C indique des perturbations externes.
-
-        Args:
-            state: État [x, y, z, vx, vy, vz]
 
         Returns:
             Constante de Jacobi C (adimensionnelle si normalized=True)
@@ -253,44 +251,10 @@ class CRTBP3Body(BaseDynamics):
             - Les perturbations lunaires et planétaires
             - La pression de radiation solaire
         """
-        x, y, z, vx, vy, vz = state
-        r1, r2 = distance_to_primary(state, self.x1, self.x2, self.normalized)
+        _, _, _, vx, vy, vz = state
 
         v_squared = vx**2 + vy**2 + vz**2
 
-        if self.normalized:
-            # Pseudo-potentiel normalisé
-            U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
+        U_star = self.effective_potential(state)
 
-        else:
-            GM_1, GM_2 = self.GM_1, self.GM_2
-            U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
-
-        C = 2.0 * U_star - v_squared
-        return C
-
-    def effective_potential(self, x: float, y: float, z: float = 0.0) -> float:
-        """
-        Calcule le potentiel effectif U* en un point.
-
-        Utile pour visualiser les régions interdites (courbes de Hill).
-
-        Args:
-            x, y, z: Coordonnées du point
-
-        Returns:
-            U* (pseudo-potentiel)
-        """
-        r1 = np.sqrt((x - self.x1) ** 2 + y**2 + z**2)
-        r2 = np.sqrt((x - self.x2) ** 2 + y**2 + z**2)
-
-        r1 = max(r1, 1e-10 if self.normalized else 1.0)
-        r2 = max(r2, 1e-10 if self.normalized else 1.0)
-
-        if self.normalized:
-            U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
-        else:
-            GM_1, GM_2 = self.GM_1, self.GM_2
-            U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
-
-        return U_star
+        return 2.0 * U_star - v_squared

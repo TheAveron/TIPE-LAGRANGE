@@ -635,7 +635,9 @@ def compute_sun_angle(
     return theta, phi
 
 
-def distance_to_primary(state, x1, x2, normalized=True):
+def distance_to_primary(
+    state: StateVector, x1: float, x2: float, normalized: bool = True
+) -> Tuple[float, float]:
     """
     Calcule les distances aux deux primaires dans le CRTBP.
 
