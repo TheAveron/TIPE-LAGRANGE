@@ -25,7 +25,7 @@ class HighFidelityDynamics(BaseDynamics):
         - Soleil
         - Planètes (Mercure à Neptune)
         - Lune
-        - Astéroïdes massifs: Ceres, Pallas, Vesta (optionnel)
+        - Astéroïdes massifs: Ceres, Pallas, Vesta (pour l'instant mis de côté)
 
     Approximations et limitations:
         - Néglige les astéroïdes < 500 km diamètre (erreur < 1e-15 m/s²)
@@ -133,14 +133,10 @@ class HighFidelityDynamics(BaseDynamics):
         Returns:
             Dérivée d'état [vx, vy, vz, ax, ay, az]
         """
-        position = state[:3]
         velocity = state[3:6]
-
         acceleration = self.compute_acceleration(t, state)
 
-        state_dot = np.concatenate([velocity, acceleration])
-
-        return state_dot
+        return np.concatenate([velocity, acceleration])
 
     def compute_acceleration(self, t: float, state: StateVector) -> PositionVector:
         """
@@ -227,7 +223,7 @@ class HighFidelityDynamics(BaseDynamics):
             self._last_time = et
 
         acc = np.zeros(3)
-        for body_name, (pos_body, vel_body, mu) in body_states.items():
+        for _, (pos_body, _, mu) in body_states.items():
             r_vec = pos_body - position
             r_mag = np.linalg.norm(r_vec)
 

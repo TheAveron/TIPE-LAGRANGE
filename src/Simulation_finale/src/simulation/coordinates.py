@@ -633,3 +633,29 @@ def compute_sun_angle(
     _, theta, phi = cartesian_to_spherical(vec)
 
     return theta, phi
+
+
+def distance_to_primary(state, x1, x2, normalized=True):
+    """
+    Calcule les distances aux deux primaires dans le CRTBP.
+
+    Args:
+        state: Vecteur d'état [x, y, z, vx, vy, vz]
+        x1: Position X du primaire 1
+        x2: Position X du primaire 2
+        normalized: Si True, distances normalisées (LU) sinon en mètres
+
+    Returns:
+        (r1, r2): Distances aux primaires 1 et 2
+    """
+    x, y, z, vx, vy, _ = state
+
+    # Distances aux primaires
+    r1 = np.sqrt((x - x1) ** 2 + y**2 + z**2)
+    r2 = np.sqrt((x - x2) ** 2 + y**2 + z**2)
+
+    # Protection contre division par zéro (collision)
+    r1 = max(r1, 1e-10 if normalized else 1.0)
+    r2 = max(r2, 1e-10 if normalized else 1.0)
+
+    return r1, r2

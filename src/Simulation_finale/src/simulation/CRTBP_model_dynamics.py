@@ -20,7 +20,7 @@ Date: 2025-01-10
 import numpy as np
 
 from .constants import Constants
-from .coordinates import PositionVector, StateVector
+from .coordinates import PositionVector, StateVector, distance_to_primary
 from .dynamics_conf import BaseDynamics, DynamicsConfig
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
@@ -142,13 +142,9 @@ class CRTBP3Body(BaseDynamics):
             Si normalized=True, ω=1 et les distances sont normalisées
             Si normalized=False, tout est en unités SI
         """
-        x, y, z = state[0], state[1], state[2]
-        vx, vy, vz = state[3], state[4], state[5]
-
         acc = self.compute_acceleration(t, state)
 
-        state_dot = np.array([vx, vy, vz, acc[0], acc[1], acc[2]])
-        return state_dot
+        return np.array([state[3], state[4], state[5], acc[0], acc[1], acc[2]])
 
     def compute_acceleration(self, t: float, state: StateVector) -> PositionVector:
         """
@@ -178,16 +174,8 @@ class CRTBP3Body(BaseDynamics):
         Returns:
             Accélération [ax, ay, az]
         """
-        x, y, z = state[0], state[1], state[2]
-        vx, vy, vz = state[3], state[4], state[5]
-
-        # Distances aux primaires
-        r1 = np.sqrt((x - self.x1) ** 2 + y**2 + z**2)
-        r2 = np.sqrt((x - self.x2) ** 2 + y**2 + z**2)
-
-        # Protection contre division par zéro (collision)
-        r1 = max(r1, 1e-10 if self.normalized else 1.0)
-        r2 = max(r2, 1e-10 if self.normalized else 1.0)
+        r1, r2 = distance_to_primary(state, self.x1, self.x2, self.normalized)
+        x, y, z, vx, vy, vz = state
 
         if self.normalized:
             # Équations normalisées (ω = 1)
@@ -216,8 +204,7 @@ class CRTBP3Body(BaseDynamics):
             omega_sq = self.omega**2
 
             # Masses effectives
-            GM_1 = self.GM_1
-            GM_2 = self.GM_2
+            GM_1, GM_2 = self.GM_1, self.GM_2
 
             # ∂U*/∂x = -G×m₁(x-x₁)/r₁³ - G×m₂(x-x₂)/r₂³ + ω²x
             dU_dx = (
@@ -266,14 +253,8 @@ class CRTBP3Body(BaseDynamics):
             - Les perturbations lunaires et planétaires
             - La pression de radiation solaire
         """
-        x, y, z = state[0], state[1], state[2]
-        vx, vy, vz = state[3], state[4], state[5]
-
-        r1 = np.sqrt((x - self.x1) ** 2 + y**2 + z**2)
-        r2 = np.sqrt((x - self.x2) ** 2 + y**2 + z**2)
-
-        r1 = max(r1, 1e-10 if self.normalized else 1.0)
-        r2 = max(r2, 1e-10 if self.normalized else 1.0)
+        x, y, z, vx, vy, vz = state
+        r1, r2 = distance_to_primary(state, self.x1, self.x2, self.normalized)
 
         v_squared = vx**2 + vy**2 + vz**2
 
@@ -281,16 +262,11 @@ class CRTBP3Body(BaseDynamics):
             # Pseudo-potentiel normalisé
             U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
 
-            C = 2.0 * U_star - v_squared
         else:
-
-            GM_1 = self.GM_1
-            GM_2 = self.GM_2
-
+            GM_1, GM_2 = self.GM_1, self.GM_2
             U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
 
-            C = 2.0 * U_star - v_squared
-
+        C = 2.0 * U_star - v_squared
         return C
 
     def effective_potential(self, x: float, y: float, z: float = 0.0) -> float:
@@ -314,9 +290,7 @@ class CRTBP3Body(BaseDynamics):
         if self.normalized:
             U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
         else:
-            GM_1 = self.GM_1
-            GM_2 = self.GM_2
-
+            GM_1, GM_2 = self.GM_1, self.GM_2
             U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
 
         return U_star

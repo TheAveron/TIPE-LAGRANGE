@@ -5,3 +5,4 @@ from .tests_MHF_ephem import (
     test_high_fidelity_model,
     test_crtbp_vs_ephemeris_comparison,
 )
+from .tests_lagrange_pos import test_lagrange_points

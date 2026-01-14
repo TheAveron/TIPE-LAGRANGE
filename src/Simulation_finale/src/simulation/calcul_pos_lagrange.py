@@ -469,3 +469,313 @@ class LagrangePointCalculator:
             eigenvalues=eigenvalues,
             distance_to_secondary=distance_to_secondary,
         )
+
+    # ========== ANALYSE DE STABILITÉ AVANCÉE ==========
+
+    def _compute_jacobian_matrix(self, position: np.ndarray) -> np.ndarray:
+        """
+        Calcule la matrice jacobienne du système au point donné.
+
+        La matrice jacobienne A(x,y,z) des équations du CRTBP est :
+
+        A = [  0    0    0    1    0    0  ]
+            [  0    0    0    0    1    0  ]
+            [  0    0    0    0    0    1  ]
+            [ U_xx U_xy U_xz  0    2    0  ]
+            [ U_yx U_yy U_yz -2    0    0  ]
+            [ U_zx U_zy U_zz  0    0    0  ]
+
+        où U*_ij = ∂²U*/∂i∂j est la dérivée seconde du pseudo-potentiel.
+
+        Pseudo-potentiel (unités normalisées) :
+            U* = (1-μ)/r₁ + μ/r₂ + ½(x² + y²)
+
+        Dérivées secondes :
+            U*_xx = -(1-μ)(2x₁² - y² - z²)/r₁⁵ - μ(2x₂² - y² - z²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³ + 1
+            U*_yy = -(1-μ)(2y² - x₁² - z²)/r₁⁵ - μ(2y² - x₂² - z²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³ + 1
+            U*_zz = -(1-μ)(2z² - x₁² - y²)/r₁⁵ - μ(2z² - x₂² - y²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³
+            U*_xy = -3(1-μ)x₁y/r₁⁵ - 3μx₂y/r₂⁵
+            U*_xz = -3(1-μ)x₁z/r₁⁵ - 3μx₂z/r₂⁵
+            U*_yz = -3(1-μ)yz/r₁⁵ - 3μyz/r₂⁵
+
+        où :
+            x₁ = x - x₁ = x + μ
+            x₂ = x - x₂ = x - 1 + μ
+            r₁ = √(x₁² + y² + z²)
+            r₂ = √(x₂² + y² + z²)
+
+        Args:
+            position: Position [x, y, z] (normalisée)
+
+        Returns:
+            Matrice jacobienne 6×6
+
+        Note:
+            Pour les points de Lagrange colinéaires (y=0, z=0), les termes
+            croisés U*_xy, U*_xz, U*_yz sont nuls.
+        """
+        x, y, z = position[0], position[1], position[2]
+
+        # Normaliser si nécessaire
+        if not self.normalized:
+            x_norm = x / self.distance_unit
+            y_norm = y / self.distance_unit
+            z_norm = z / self.distance_unit
+        else:
+            x_norm = x
+            y_norm = y
+            z_norm = z
+
+        # Positions relatives aux primaires
+        x1 = x_norm + self.mu  # Position relative au primaire 1
+        x2 = x_norm - 1.0 + self.mu  # Position relative au primaire 2
+
+        # Distances
+        r1_squared = x1**2 + y_norm**2 + z_norm**2
+        r2_squared = x2**2 + y_norm**2 + z_norm**2
+
+        r1 = np.sqrt(r1_squared)
+        r2 = np.sqrt(r2_squared)
+
+        # Éviter singularités
+        if r1 < 1e-10 or r2 < 1e-10:
+            raise ValueError("Position trop proche d'un primaire pour calcul jacobien")
+
+        r1_3 = r1**3
+        r1_5 = r1**5
+        r2_3 = r2**3
+        r2_5 = r2**5
+
+        # Coefficients pour simplifier
+        c1 = 1.0 - self.mu
+        c2 = self.mu
+
+        # Dérivées secondes du pseudo-potentiel
+        # U*_xx
+        U_xx = (
+            -c1 * (2 * x1**2 - y_norm**2 - z_norm**2) / r1_5
+            - c2 * (2 * x2**2 - y_norm**2 - z_norm**2) / r2_5
+            - c1 / r1_3
+            - c2 / r2_3
+            + 1.0
+        )
+
+        # U*_yy
+        U_yy = (
+            -c1 * (2 * y_norm**2 - x1**2 - z_norm**2) / r1_5
+            - c2 * (2 * y_norm**2 - x2**2 - z_norm**2) / r2_5
+            - c1 / r1_3
+            - c2 / r2_3
+            + 1.0
+        )
+
+        # U*_zz
+        U_zz = (
+            -c1 * (2 * z_norm**2 - x1**2 - y_norm**2) / r1_5
+            - c2 * (2 * z_norm**2 - x2**2 - y_norm**2) / r2_5
+            - c1 / r1_3
+            - c2 / r2_3
+        )
+
+        # U*_xy = U*_yx
+        U_xy = -3 * c1 * x1 * y_norm / r1_5 - 3 * c2 * x2 * y_norm / r2_5
+
+        # U*_xz = U*_zx
+        U_xz = -3 * c1 * x1 * z_norm / r1_5 - 3 * c2 * x2 * z_norm / r2_5
+
+        # U*_yz = U*_zy
+        U_yz = -3 * c1 * y_norm * z_norm / r1_5 - 3 * c2 * y_norm * z_norm / r2_5
+
+        # Construction de la matrice jacobienne 6×6
+        A = np.zeros((6, 6))
+
+        # Bloc identité 3×3 en haut à droite (dérivée position = vitesse)
+        A[0:3, 3:6] = np.eye(3)
+
+        # Bloc des dérivées secondes (en bas à gauche)
+        A[3, 0] = U_xx
+        A[3, 1] = U_xy
+        A[3, 2] = U_xz
+        A[3, 4] = 2.0  # Terme de Coriolis
+
+        A[4, 0] = U_xy
+        A[4, 1] = U_yy
+        A[4, 2] = U_yz
+        A[4, 3] = -2.0  # Terme de Coriolis
+
+        A[5, 0] = U_xz
+        A[5, 1] = U_yz
+        A[5, 2] = U_zz
+
+        return A
+
+    def _compute_eigenvalues(self, position: np.ndarray) -> np.ndarray:
+        """
+        Calcule les valeurs propres de la matrice jacobienne.
+
+        Les valeurs propres λ satisfont :
+            det(A - λI) = 0
+
+        Pour les points de Lagrange, on obtient 6 valeurs propres qui
+        déterminent la stabilité :
+
+        Points colinéaires (L1, L2, L3) :
+            - 2 valeurs propres réelles : ±λ_r (mode instable)
+            - 4 valeurs propres imaginaires pures : ±iλ_i1, ±iλ_i2 (modes oscillatoires)
+            → INSTABLE (exponentielle croissante)
+
+        Points triangulaires (L4, L5) :
+            Si μ < μ_crit ≈ 0.0385 :
+                - 6 valeurs propres imaginaires pures
+                → STABLE (oscillations périodiques)
+            Si μ > μ_crit :
+                - 2 valeurs propres réelles
+                - 4 valeurs propres imaginaires
+                → INSTABLE
+
+        Args:
+            position: Position [x, y, z]
+
+        Returns:
+            Array de 6 valeurs propres complexes
+
+        Interprétation physique :
+            - Re(λ) > 0 : mode exponentiellement croissant (instable)
+            - Re(λ) = 0 : mode oscillatoire (neutre)
+            - Re(λ) < 0 : mode exponentiellement décroissant (stable)
+        """
+        # Calculer la matrice jacobienne
+        A = self._compute_jacobian_matrix(position)
+
+        # Calculer les valeurs propres
+        eigenvalues = np.linalg.eigvals(A)
+
+        # Trier par partie réelle décroissante
+        eigenvalues = eigenvalues[np.argsort(-eigenvalues.real)]
+
+        return eigenvalues
+
+    def analyze_stability(self, point: LagrangePoint) -> Dict:
+        """
+        Analyse détaillée de la stabilité d'un point de Lagrange.
+
+        Args:
+            point: Point à analyser
+
+        Returns:
+            Dictionnaire avec :
+                - 'eigenvalues': valeurs propres
+                - 'stable_modes': nombre de modes stables
+                - 'unstable_modes': nombre de modes instables
+                - 'neutral_modes': nombre de modes neutres
+                - 'dominant_timescale': échelle de temps du mode dominant (jours)
+                - 'classification': description textuelle
+
+        Exemple pour L2 (Soleil-Terre) :
+            - Mode instable : τ ≈ 23 jours (document 1)
+            - Modes oscillatoires : périodes ~140-200 jours
+        """
+        # Calculer le point
+        info = self.compute_lagrange_point(point)
+        position = info.position
+
+        # Normaliser si nécessaire
+        if not self.normalized:
+            pos_norm = position / self.distance_unit
+        else:
+            pos_norm = position
+
+        # Calculer valeurs propres
+        eigenvalues = self._compute_eigenvalues(pos_norm)
+
+        # Analyser les valeurs propres
+        tolerance = 1e-10
+
+        stable_modes = 0
+        unstable_modes = 0
+        neutral_modes = 0
+
+        real_eigenvalues = []
+        imaginary_eigenvalues = []
+
+        for lam in eigenvalues:
+            real_part = lam.real
+            imag_part = abs(lam.imag)
+
+            if abs(real_part) > tolerance:
+                # Mode avec composante réelle
+                if real_part > 0:
+                    unstable_modes += 1
+                else:
+                    stable_modes += 1
+                real_eigenvalues.append(lam)
+            else:
+                # Mode purement imaginaire
+                neutral_modes += 1
+                imaginary_eigenvalues.append(lam)
+
+        # Échelle de temps du mode dominant
+        # Pour mode instable : τ = 1/|Re(λ)|
+        # Pour mode oscillatoire : T = 2π/|Im(λ)|
+
+        if len(real_eigenvalues) > 0:
+            # Mode instable dominant
+            max_real = max(abs(lam.real) for lam in real_eigenvalues)
+
+            if not self.normalized:
+                # Convertir en unités physiques
+                omega = Constants.OMEGA_EARTH
+                timescale_seconds = 1.0 / (max_real * omega)
+            else:
+                # En unités normalisées (période = 2π)
+                timescale_seconds = 1.0 / max_real * (2 * np.pi / Constants.OMEGA_EARTH)
+
+            timescale_days = timescale_seconds / 86400.0
+            mode_type = "instable (exponentiel)"
+        else:
+            # Mode oscillatoire dominant
+            max_imag = max(abs(lam.imag) for lam in imaginary_eigenvalues)
+
+            if not self.normalized:
+                omega = Constants.OMEGA_EARTH
+                timescale_seconds = 2 * np.pi / (max_imag * omega)
+            else:
+                timescale_seconds = (
+                    2 * np.pi / max_imag * (2 * np.pi / Constants.OMEGA_EARTH)
+                )
+
+            timescale_days = timescale_seconds / 86400.0
+            mode_type = "oscillatoire (période)"
+
+        # Classification textuelle
+        if point in [LagrangePoint.L1, LagrangePoint.L2, LagrangePoint.L3]:
+            classification = (
+                f"{point.value} : Point colinéaire INSTABLE\n"
+                f"  - {unstable_modes} modes instables\n"
+                f"  - {neutral_modes} modes oscillatoires\n"
+                f"  - Échelle de temps dominante : {timescale_days:.1f} jours ({mode_type})"
+            )
+        else:
+            if self.mu < self.mu_critical:
+                classification = (
+                    f"{point.value} : Point triangulaire STABLE (μ < μ_crit)\n"
+                    f"  - {neutral_modes} modes oscillatoires\n"
+                    f"  - Période dominante : {timescale_days:.1f} jours"
+                )
+            else:
+                classification = (
+                    f"{point.value} : Point triangulaire INSTABLE (μ > μ_crit)\n"
+                    f"  - {unstable_modes} modes instables\n"
+                    f"  - {neutral_modes} modes oscillatoires\n"
+                    f"  - Échelle de temps : {timescale_days:.1f} jours ({mode_type})"
+                )
+
+        return {
+            "eigenvalues": eigenvalues,
+            "stable_modes": stable_modes,
+            "unstable_modes": unstable_modes,
+            "neutral_modes": neutral_modes,
+            "dominant_timescale_days": timescale_days,
+            "mode_type": mode_type,
+            "classification": classification,
+        }

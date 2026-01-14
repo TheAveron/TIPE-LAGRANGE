@@ -8,8 +8,6 @@ Ce module génère des graphiques pour comprendre :
     - Stabilité locale (champs de vecteurs)
     - Comparaison Soleil-Terre vs Terre-Lune
 
-Auteur: Assistant
-Date: 2025-01-14
 """
 
 import numpy as np
@@ -24,7 +22,7 @@ from src.simulation.calcul_pos_lagrange import (
 )
 from src.simulation.constants import Constants
 
-# Configuration matplotlib pour de beaux graphiques
+# Configuration matplotlib globale
 plt.rcParams.update(
     {
         "font.size": 11,
