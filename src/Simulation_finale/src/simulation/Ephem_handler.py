@@ -15,6 +15,8 @@ from typing import List, Optional, Tuple
 import numpy as np
 import spiceypy as spice
 
+from src.simulation.coordinates import VelocityVector
+
 from .constants import Constants
 
 
@@ -164,13 +166,11 @@ class EphemerisManager:
 
         try:
             # spkezr retourne [x, y, z, vx, vy, vz] en km et km/s
-            # Le dernier argument est le temps de lumière (ignoré ici)
             state_km, _ = spice.spkezr(body, time_et, reference_frame, "NONE", observer)
 
             # Conversion km → m et km/s → m/s
-            position = state_km[:3] * 1000.0  # km → m # type: ignore
-            velocity = state_km[3:6] * 1000.0  # km/s → m/s # type: ignore
-
+            position = state_km[:3] * 1000.0  # type: ignore
+            velocity: VelocityVector = state_km[3:6] * 1000.0  # type: ignore
             # Mise en cache
             self._position_cache[cache_key] = (position, velocity)
 

@@ -621,9 +621,6 @@ def compute_sun_angle(
         (theta, phi) où:
             theta: angle dans le plan XY [rad]
             phi: angle hors du plan XY [rad]
-
-    Note:
-        Utile pour calculer les contraintes d'attitude JWST (sun pitch, yaw).
     """
     if sun_to_spacecraft:
         vec = position_rlp
@@ -652,11 +649,9 @@ def distance_to_primary(
     """
     x, y, z, vx, vy, _ = state
 
-    # Distances aux primaires
     r1 = np.sqrt((x - x1) ** 2 + y**2 + z**2)
     r2 = np.sqrt((x - x2) ** 2 + y**2 + z**2)
 
-    # Protection contre division par zéro (collision)
     r1 = max(r1, 1e-10 if normalized else 1.0)
     r2 = max(r2, 1e-10 if normalized else 1.0)
 

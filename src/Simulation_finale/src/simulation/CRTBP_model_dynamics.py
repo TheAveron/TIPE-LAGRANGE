@@ -251,7 +251,7 @@ class CRTBP3Body(BaseDynamics):
             - Les perturbations lunaires et planétaires
             - La pression de radiation solaire
         """
-        _, _, _, vx, vy, vz = state
+        vx, vy, vz = state[3:6]
 
         v_squared = vx**2 + vy**2 + vz**2
 
