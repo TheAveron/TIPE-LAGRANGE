@@ -44,7 +44,7 @@ class JWSTOrbitVisualizer:
 
         state_phys = np.array(
             [
-                self.l2_pos - ax,
+                self.l2_pos + ax,
                 0.0,
                 az,
                 0.0,
