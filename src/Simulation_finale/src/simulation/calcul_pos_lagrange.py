@@ -4,26 +4,24 @@ Module de calcul des points de Lagrange.
 Ce module calcule les positions exactes des 5 points de Lagrange
 dans le problème restreint à trois corps (CRTBP).
 
-Méthodes:
-    - Newton-Raphson pour L1, L2, L3 (points colinéaires)
-    - Calcul direct pour L4, L5 (points triangulaires)
-    - Analyse de stabilité locale
+Ce module implémente :
+- Calcul des 5 points de Lagrange (L1-L5) dans le CRTBP
+- Analyse de stabilité (valeurs propres, vecteurs propres)
+- Classification des points (stable/instable/selle)
 
-Référence:
-    Documents 4, 7 (formules analytiques et numériques)
-
-Auteur: Assistant
-Date: 2025-01-10
+Références :
+- Document 4 (2000lag.pdf) : Formules analytiques des points de Lagrange
+- Document 7 (UTF-8lagrange_theorie.pdf) : Théorie détaillée
+- Szebehely (1967) : Theory of Orbits
 """
 
 import numpy as np
-from typing import Optional, Dict
+from typing import Optional, Dict, NamedTuple
 from dataclasses import dataclass
 from enum import Enum
 
-from .constants import Constants, NumericalConstants
-from .CRTBP_model_dynamics import CRTBP3Body
-from .dynamics_conf import DynamicsConfig, DynamicsModel
+from src.simulation.coordinates import StateVector, distance_to_primary
+
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
 
@@ -46,736 +44,486 @@ class Stability(Enum):
     CONDITIONALLY_STABLE = "conditionally_stable"  # L4, L5 si μ > μ_critique
 
 
-@dataclass
-class LagrangePointInfo:
-    """
-    Information complète sur un point de Lagrange.
+class LagrangePointInfo(NamedTuple):
+    """Information complète sur un point de Lagrange.
 
-    Attributs:
-        point: Identifiant du point (L1-L5)
-        position: Position [x, y, z] dans le référentiel tournant
-        stability: Type de stabilité
-        jacobi_constant: Valeur de la constante de Jacobi
-        eigenvalues: Valeurs propres de la matrice jacobienne (6 valeurs)
-        distance_to_secondary: Distance au corps secondaire (Terre)
+    Attributes:
+        position: Position [x, y, z] en unités normalisées CRTBP
+        name: Nom du point (L1, L2, etc.)
+        eigenvalues: Valeurs propres de la matrice jacobienne (6 valeurs complexes)
+        eigenvectors: Vecteurs propres correspondants (6x6)
+        stability_type: Type de stabilité ('unstable', 'saddle', 'stable')
+        is_collinear: True si point colinéaire (L1, L2, L3)
+        jacobi_constant: Constante de Jacobi au point
     """
 
-    point: LagrangePoint
     position: np.ndarray
-    stability: Stability
+    name: LagrangePoint
+    eigenvalues: np.ndarray
+    eigenvectors: np.ndarray
+    stability_type: str
+    is_collinear: bool
     jacobi_constant: float
-    eigenvalues: Optional[np.ndarray] = None
-    distance_to_secondary: Optional[float] = None
-
-    def __str__(self) -> str:
-        """Représentation textuelle."""
-        s = f"\n{self.point.value}:\n"
-        s += f"  Position: [{self.position[0]/1e9:.6f}, {self.position[1]/1e9:.6f}, "
-        s += f"{self.position[2]/1e9:.6f}] million km\n"
-        s += f"  Stabilité: {self.stability.value}\n"
-        s += f"  Jacobi C: {self.jacobi_constant:.6f}\n"
-        if self.distance_to_secondary is not None:
-            s += f"  Distance à la Terre: {self.distance_to_secondary/1e6:.3f} milliers km\n"
-        return s
 
 
-# ========== CLASSE PRINCIPALE ==========
+@dataclass
+class LagrangePointConfig:
+    """Configuration pour le calcul des points de Lagrange.
+
+    Attributes:
+        mu: Paramètre de masse du CRTBP (M2 / (M1 + M2))
+        tolerance: Tolérance pour les solveurs Newton-Raphson
+        max_iterations: Nombre maximum d'itérations
+        use_high_order: Si True, utilise les développements d'ordre supérieur
+    """
+
+    mu: float
+    distance_unit: float
+    tolerance: float = 1e-12
+    max_iterations: int = 100
+    use_high_order: bool = True
+
+    # Valeur critique de μ pour stabilité de L4, L5
+    # μ_crit = (1 - √(23/27)) / 2 ≈ 0.0385
+    mu_critical = 0.5 * (1.0 - np.sqrt(23.0 / 27.0))
 
 
 class LagrangePointCalculator:
+    """Calculateur des points de Lagrange dans le CRTBP.
+
+    Cette classe calcule les positions et analyse la stabilité des 5 points
+    de Lagrange dans le problème restreint des trois corps circulaire.
+
+    Les points colinéaires (L1, L2, L3) sont calculés par Newton-Raphson.
+    Les points triangulaires (L4, L5) ont des positions analytiques.
+
+    Attributes:
+        config: Configuration du calculateur
+        mu: Paramètre de masse μ = M2/(M1+M2)
     """
-    Calculateur des points de Lagrange dans le CRTBP.
 
-    Cette classe fournit des méthodes pour :
-    - Calculer les positions des 5 points de Lagrange
-    - Analyser leur stabilité
-    - Obtenir les valeurs propres de la matrice jacobienne
-
-    Usage:
-        calculator = LagrangePointCalculator(mu=Constants.MU_SUN_EARTH)
-        l2_info = calculator.compute_lagrange_point(LagrangePoint.L2)
-        print(l2_info)
-    """
-
-    def __init__(
-        self, mu: float, distance_unit: float = Constants.AU, normalized: bool = False
-    ):
-        """
-        Initialise le calculateur.
+    def __init__(self, config: LagrangePointConfig):
+        """Initialise le calculateur.
 
         Args:
-            mu: Paramètre de masse μ = m₂/(m₁+m₂)
-            distance_unit: Unité de distance (défaut: AU)
-            normalized: Si True, positions en unités normalisées
-
-        Note:
-            Pour Soleil-Terre: μ ≈ 3.0e-6
-            Pour Terre-Lune: μ ≈ 0.012
-        """
-        self.mu = mu
-        self.distance_unit = distance_unit
-        self.normalized = normalized
-
-        # Positions des primaires dans le référentiel tournant normalisé
-        self.x1 = -mu  # Primaire 1 (plus massif, ex: Soleil)
-        self.x2 = 1.0 - mu  # Primaire 2 (moins massif, ex: Terre)
-
-        if not normalized:
-            # Convertir en unités physiques
-            self.x1 *= distance_unit
-            self.x2 *= distance_unit
-
-        # Valeur critique de μ pour stabilité de L4, L5
-        # μ_crit = (1 - √(23/27)) / 2 ≈ 0.0385
-        self.mu_critical = 0.5 * (1.0 - np.sqrt(23.0 / 27.0))
-
-        # Créer un objet CRTBP pour calculs auxiliaires
-        config = DynamicsConfig(model=DynamicsModel.CRTBP)
-        self.crtbp = CRTBP3Body(config, normalized=normalized)
-
-    # ========== CALCUL DES POINTS COLINÉAIRES (L1, L2, L3) ==========
-
-    def compute_l1(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
-        """
-        Calcule la position du point L1 (entre les deux primaires).
-
-        Méthode:
-            Newton-Raphson sur l'équation:
-            f(x) = x - (1-μ)(x+μ)/|x+μ|³ - μ(x-1+μ)/|x-1+μ|³ = 0
-
-        Args:
-            initial_guess: Estimation initiale (si None, utilise formule approchée)
-
-        Returns:
-            Information complète sur L1
-
-        Approximation pour μ << 1:
-            x_L1 ≈ 1 - (μ/3)^(1/3)
-
-        Pour Soleil-Terre: L1 est à ~1.5 million km de la Terre (côté Soleil)
-        """
-        if initial_guess is None:
-            # Formule approchée (Taylor au 1er ordre)
-            x0 = 1.0 - (self.mu / 3.0) ** (1.0 / 3.0)
-        else:
-            x0 = initial_guess
-
-        # Newton-Raphson
-        x = self._newton_raphson_collinear(
-            x0,
-            region="L1",
-            tol=NumericalConstants.LAGRANGE_POINT_TOL,
-            max_iter=NumericalConstants.MAX_ITERATIONS,
-        )
-
-        if not self.normalized:
-            x *= self.distance_unit
-
-        position = np.array([x, 0.0, 0.0])
-
-        return self._create_lagrange_point_info(LagrangePoint.L1, position)
-
-    def compute_l2(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
-        """
-        Calcule la position du point L2 (au-delà du corps secondaire).
-
-        Args:
-            initial_guess: Estimation initiale
-
-        Returns:
-            Information complète sur L2
-
-        Approximation pour μ << 1:
-            x_L2 ≈ 1 + (μ/3)^(1/3)
-
-        Pour Soleil-Terre: L2 est à ~1.5 million km de la Terre (côté opposé au Soleil)
-        C'est là que se trouve JWST !
-        """
-        if initial_guess is None:
-            x0 = 1.0 + (self.mu / 3.0) ** (1.0 / 3.0)
-        else:
-            x0 = initial_guess
-
-        x = self._newton_raphson_collinear(
-            x0,
-            region="L2",
-            tol=NumericalConstants.LAGRANGE_POINT_TOL,
-            max_iter=NumericalConstants.MAX_ITERATIONS,
-        )
-
-        if not self.normalized:
-            x *= self.distance_unit
-
-        position = np.array([x, 0.0, 0.0])
-
-        return self._create_lagrange_point_info(LagrangePoint.L2, position)
-
-    def compute_l3(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
-        """
-        Calcule la position du point L3 (opposé au corps secondaire).
-
-        Args:
-            initial_guess: Estimation initiale
-
-        Returns:
-            Information complète sur L3
-
-        Approximation pour μ << 1:
-            x_L3 ≈ -1 - 5μ/12
-
-        Pour Soleil-Terre: L3 est à ~150 million km du Soleil
-        (légèrement décalé du point opposé à la Terre)
-        """
-        if initial_guess is None:
-            x0 = -1.0 - 5.0 * self.mu / 12.0
-        else:
-            x0 = initial_guess
-
-        x = self._newton_raphson_collinear(
-            x0,
-            region="L3",
-            tol=NumericalConstants.LAGRANGE_POINT_TOL,
-            max_iter=NumericalConstants.MAX_ITERATIONS,
-        )
-
-        if not self.normalized:
-            x *= self.distance_unit
-
-        position = np.array([x, 0.0, 0.0])
-
-        return self._create_lagrange_point_info(LagrangePoint.L3, position)
-
-    def _newton_raphson_collinear(
-        self, x0: float, region: str, tol: float, max_iter: int
-    ) -> float:
-        """
-        Méthode de Newton-Raphson pour trouver un point de Lagrange colinéaire.
-
-        Équation à résoudre (y=0, z=0):
-            f(x) = x - (1-μ)(x-x₁)/r₁³ - μ(x-x₂)/r₂³ = 0
-
-        où:
-            r₁ = |x - x₁| = |x + μ|
-            r₂ = |x - x₂| = |x - 1 + μ|
-
-        Dérivée:
-            f'(x) = 1 - (1-μ)/r₁³ + 3(1-μ)(x-x₁)²/r₁⁵
-                      - μ/r₂³ + 3μ(x-x₂)²/r₂⁵
-
-        Args:
-            x0: Estimation initiale
-            region: "L1", "L2", ou "L3" (pour gestion des bornes)
-            tol: Tolérance de convergence
-            max_iter: Nombre maximum d'itérations
-
-        Returns:
-            Position x du point de Lagrange (normalisée)
+            config: Configuration contenant μ et paramètres numériques
 
         Raises:
-            RuntimeError: Si la méthode ne converge pas
+            ValueError: Si μ n'est pas dans [0, 1]
         """
-        x = x0
+        if not 0 <= config.mu <= 1:
+            raise ValueError(f"μ doit être dans [0, 1], reçu : {config.mu}")
 
-        for iteration in range(max_iter):
-            # Distances aux primaires
+        self.config = config
+        self.mu = config.mu
+
+    def compute_l1(self) -> np.ndarray:
+        """Calcule la position du point L1.
+
+        L1 est situé entre les deux primaires. Position approximative :
+        x_L1 ≈ 1 - μ - (μ/3)^(1/3)
+
+        Returns:
+            Position [x, 0, 0] en coordonnées CRTBP normalisées
+        """
+        # Première approximation (valable pour μ << 1)
+        x0 = 1 - self.mu - (self.mu / 3) ** (1 / 3)
+
+        # Affinement par Newton-Raphson
+        x_l1 = self._newton_raphson_collinear(x0, point="L1")
+
+        return np.array([x_l1, 0.0, 0.0])
+
+    def compute_l2(self) -> np.ndarray:
+        """Calcule la position du point L2.
+
+        L2 est situé au-delà de M2 (Terre). Position approximative :
+        x_L2 ≈ 1 - μ + (μ/3)^(1/3)
+
+        Returns:
+            Position [x, 0, 0] en coordonnées CRTBP normalisées
+        """
+        x0 = 1 - self.mu + (self.mu / 3) ** (1 / 3)
+        x_l2 = self._newton_raphson_collinear(x0, point="L2")
+        return np.array([x_l2, 0.0, 0.0])
+
+    def compute_l3(self) -> np.ndarray:
+        """Calcule la position du point L3.
+
+        L3 est situé à l'opposé de M2 par rapport à M1.
+        Position approximative : x_L3 ≈ -1 - 5μ/12
+
+        Returns:
+            Position [x, 0, 0] en coordonnées CRTBP normalisées
+        """
+        x0 = -1 - 5 * self.mu / 12
+        x_l3 = self._newton_raphson_collinear(x0, point="L3")
+
+        return np.array([x_l3, 0.0, 0.0])
+
+    def compute_l4(self) -> np.ndarray:
+        """Calcule la position du point L4.
+
+        L4 forme un triangle équilatéral avec M1 et M2.
+        Position exacte : (1/2 - μ, √3/2, 0)
+
+        Returns:
+            Position [x, y, z] en coordonnées CRTBP normalisées
+        """
+        x = 0.5 - self.mu
+        y = np.sqrt(3) / 2
+
+        return np.array([x, y, 0.0])
+
+    def compute_l5(self) -> np.ndarray:
+        """Calcule la position du point L5.
+
+        L5 forme un triangle équilatéral avec M1 et M2 (symétrique de L4).
+        Position exacte : (1/2 - μ, -√3/2, 0)
+
+        Returns:
+            Position [x, y, z] en coordonnées CRTBP normalisées
+        """
+        x = 0.5 - self.mu
+        y = -np.sqrt(3) / 2
+
+        return np.array([x, y, 0.0])
+
+    def _newton_raphson_collinear(self, x0: float, point: str) -> float:
+        """Résout pour un point de Lagrange colinéaire par Newton-Raphson.
+
+        Résout l'équation : U_x(x, 0, 0) = x
+        où U est le potentiel effectif du CRTBP.
+
+        Args:
+            x0: Estimation initiale de x
+            point: Nom du point ('L1', 'L2', ou 'L3')
+
+        Returns:
+            Position x du point de Lagrange
+
+        Raises:
+            RuntimeError: Si la convergence échoue
+        """
+
+        def equation(x: float) -> float:
+            """Équation à résoudre : ∂U*/∂x - x = 0"""
             r1 = abs(x + self.mu)
-            r2 = abs(x - 1.0 + self.mu)
+            r2 = abs(x - 1 + self.mu)
 
-            # Éviter division par zéro
-            if r1 < 1e-12 or r2 < 1e-12:
-                raise RuntimeError(f"Newton-Raphson: trop proche d'un primaire")
+            if r1 < 1e-15 or r2 < 1e-15:
+                return np.inf
 
-            # Fonction f(x)
-            f = (
+            return (
                 x
-                - (1.0 - self.mu) * (x + self.mu) / r1**3
-                - self.mu * (x - 1.0 + self.mu) / r2**3
+                - (1 - self.mu) * (x + self.mu) / r1**3
+                - self.mu * (x - 1 + self.mu) / r2**3
             )
 
-            # Dérivée f'(x)
-            df = (
-                1.0
-                - (1.0 - self.mu) / r1**3
-                + 3.0 * (1.0 - self.mu) * (x + self.mu) ** 2 / r1**5
-                - self.mu / r2**3
-                + 3.0 * self.mu * (x - 1.0 + self.mu) ** 2 / r2**5
-            )
+        def derivative(x: float) -> float:
+            """Dérivée de l'équation"""
+            r1 = abs(x + self.mu)
+            r2 = abs(x - 1 + self.mu)
 
-            # Vérifier que la dérivée n'est pas nulle
-            if abs(df) < 1e-15:
-                raise RuntimeError(f"Newton-Raphson: dérivée nulle à x={x}")
+            if r1 < 1e-15 or r2 < 1e-15:
+                return np.inf
 
-            # Mise à jour de Newton-Raphson
-            x_new = x - f / df
+            term1 = (1 - self.mu) / r1**3
+            term2 = self.mu / r2**3
+            term3 = 3 * (1 - self.mu) * (x + self.mu) ** 2 / r1**5
+            term4 = 3 * self.mu * (x - 1 + self.mu) ** 2 / r2**5
 
-            # Vérifier la convergence
-            if abs(x_new - x) < tol:
+            return 1 - term1 - term2 + term3 + term4
+
+        # Méthode de Newton-Raphson
+        x = x0
+        for i in range(self.config.max_iterations):
+            f = equation(x)
+            fp = derivative(x)
+
+            if abs(f) < self.config.tolerance:
+                return x
+
+            if abs(fp) < 1e-15:
+                raise RuntimeError(f"Dérivée nulle pour {point}")
+
+            x_new = x - f / fp
+
+            if abs(x_new - x) < self.config.tolerance:
                 return x_new
 
             x = x_new
 
         raise RuntimeError(
-            f"Newton-Raphson n'a pas convergé pour {region} "
-            f"après {max_iter} itérations"
+            f"Convergence échouée pour {point} après {self.config.max_iterations} itérations"
         )
 
-    # ========== CALCUL DES POINTS TRIANGULAIRES (L4, L5) ==========
+    def _compute_jacobian_matrix(self, pos: np.ndarray) -> np.ndarray:
+        """Calcule la matrice jacobienne du système linéarisé.
 
-    def compute_l4(self) -> LagrangePointInfo:
-        """
-        Calcule la position du point L4 (triangle équilatéral, au-dessus).
+        Pour le CRTBP, la matrice est 6×6 et a la forme :
 
-        Formule exacte (pas d'itération nécessaire):
-            x = 1/2 - μ
-            y = √3/2
-            z = 0
+        J = [  0₃   I₃  ]
+            [ Uxx  2Ω  ]
 
-        Returns:
-            Information complète sur L4
-
-        Note:
-            L4 et L5 forment des triangles équilatéraux avec les deux primaires.
-            Pour Soleil-Terre, ils sont sur l'orbite terrestre, ±60° en avant/arrière.
-        """
-        x = 0.5 - self.mu
-        y = np.sqrt(3.0) / 2.0
-        z = 0.0
-
-        if not self.normalized:
-            x *= self.distance_unit
-            y *= self.distance_unit
-
-        position = np.array([x, y, z])
-
-        return self._create_lagrange_point_info(LagrangePoint.L4, position)
-
-    def compute_l5(self) -> LagrangePointInfo:
-        """
-        Calcule la position du point L5 (triangle équilatéral, en-dessous).
-
-        Formule exacte:
-            x = 1/2 - μ
-            y = -√3/2
-            z = 0
-
-        Returns:
-            Information complète sur L5
-
-        Note:
-            L5 est le symétrique de L4 par rapport au plan XZ.
-        """
-        x = 0.5 - self.mu
-        y = -np.sqrt(3.0) / 2.0
-        z = 0.0
-
-        if not self.normalized:
-            x *= self.distance_unit
-            y *= self.distance_unit
-
-        position = np.array([x, y, z])
-
-        return self._create_lagrange_point_info(LagrangePoint.L5, position)
-
-    # ========== CALCUL GÉNÉRIQUE ==========
-
-    def compute_lagrange_point(self, point: LagrangePoint) -> LagrangePointInfo:
-        """
-        Calcule n'importe quel point de Lagrange.
+        où Uxx est la matrice hessienne du potentiel effectif et
+        Ω est la matrice de Coriolis.
 
         Args:
-            point: Point à calculer (L1, L2, L3, L4, ou L5)
-
-        Returns:
-            Information complète sur le point
-
-        Example:
-            >>> calc = LagrangePointCalculator(Constants.MU_SUN_EARTH)
-            >>> l2 = calc.compute_lagrange_point(LagrangePoint.L2)
-            >>> print(l2)
-        """
-        if point == LagrangePoint.L1:
-            return self.compute_l1()
-        elif point == LagrangePoint.L2:
-            return self.compute_l2()
-        elif point == LagrangePoint.L3:
-            return self.compute_l3()
-        elif point == LagrangePoint.L4:
-            return self.compute_l4()
-        elif point == LagrangePoint.L5:
-            return self.compute_l5()
-        else:
-            raise ValueError(f"Point de Lagrange inconnu: {point}")
-
-    def compute_all_lagrange_points(self) -> Dict[LagrangePoint, LagrangePointInfo]:
-        """
-        Calcule tous les points de Lagrange.
-
-        Returns:
-            Dictionnaire {point: info} pour les 5 points
-        """
-        return {point: self.compute_lagrange_point(point) for point in LagrangePoint}
-
-    # ========== ANALYSE DE STABILITÉ ==========
-
-    def _create_lagrange_point_info(
-        self, point: LagrangePoint, position: np.ndarray
-    ) -> LagrangePointInfo:
-        """
-        Crée un objet LagrangePointInfo complet avec analyse de stabilité.
-
-        Args:
-            point: Identifiant du point
-            position: Position [x, y, z]
-
-        Returns:
-            Objet LagrangePointInfo complet
-        """
-        # État au point de Lagrange (vitesse nulle)
-        state = np.concatenate([position, np.zeros(3)])
-
-        # Constante de Jacobi
-        C = self.crtbp.jacobi_constant(state)
-
-        # Distance au secondaire (Terre)
-        if not self.normalized:
-            x2_phys = self.x2
-        else:
-            x2_phys = self.x2 * self.distance_unit
-
-        distance_to_secondary = float(
-            np.linalg.norm(position - np.array([x2_phys, 0.0, 0.0]))
-        )
-
-        # Stabilité
-        if point in [LagrangePoint.L4, LagrangePoint.L5]:
-            # L4 et L5: stables si μ < μ_crit
-            if self.mu < self.mu_critical:
-                stability = Stability.STABLE
-            else:
-                stability = Stability.CONDITIONALLY_STABLE
-        else:
-            # L1, L2, L3: toujours instables
-            stability = Stability.UNSTABLE
-
-        # Valeurs propres (optionnel, calcul coûteux)
-        # eigenvalues = self._compute_eigenvalues(position)
-        eigenvalues = None
-
-        return LagrangePointInfo(
-            point=point,
-            position=position,
-            stability=stability,
-            jacobi_constant=C,
-            eigenvalues=eigenvalues,
-            distance_to_secondary=distance_to_secondary,
-        )
-
-    # ========== ANALYSE DE STABILITÉ AVANCÉE ==========
-
-    def _compute_jacobian_matrix(self, position: np.ndarray) -> np.ndarray:
-        """
-        Calcule la matrice jacobienne du système au point donné.
-
-        La matrice jacobienne A(x,y,z) des équations du CRTBP est :
-
-        A = [  0    0    0    1    0    0  ]
-            [  0    0    0    0    1    0  ]
-            [  0    0    0    0    0    1  ]
-            [ U_xx U_xy U_xz  0    2    0  ]
-            [ U_yx U_yy U_yz -2    0    0  ]
-            [ U_zx U_zy U_zz  0    0    0  ]
-
-        où U*_ij = ∂²U*/∂i∂j est la dérivée seconde du pseudo-potentiel.
-
-        Pseudo-potentiel (unités normalisées) :
-            U* = (1-μ)/r₁ + μ/r₂ + ½(x² + y²)
-
-        Dérivées secondes :
-            U*_xx = -(1-μ)(2x₁² - y² - z²)/r₁⁵ - μ(2x₂² - y² - z²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³ + 1
-            U*_yy = -(1-μ)(2y² - x₁² - z²)/r₁⁵ - μ(2y² - x₂² - z²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³ + 1
-            U*_zz = -(1-μ)(2z² - x₁² - y²)/r₁⁵ - μ(2z² - x₂² - y²)/r₂⁵ - (1-μ)/r₁³ - μ/r₂³
-            U*_xy = -3(1-μ)x₁y/r₁⁵ - 3μx₂y/r₂⁵
-            U*_xz = -3(1-μ)x₁z/r₁⁵ - 3μx₂z/r₂⁵
-            U*_yz = -3(1-μ)yz/r₁⁵ - 3μyz/r₂⁵
-
-        où :
-            x₁ = x - x₁ = x + μ
-            x₂ = x - x₂ = x - 1 + μ
-            r₁ = √(x₁² + y² + z²)
-            r₂ = √(x₂² + y² + z²)
-
-        Args:
-            position: Position [x, y, z] (normalisée)
+            pos: Position [x, y, z] où calculer la jacobienne
 
         Returns:
             Matrice jacobienne 6×6
-
-        Note:
-            Pour les points de Lagrange colinéaires (y=0, z=0), les termes
-            croisés U*_xy, U*_xz, U*_yz sont nuls.
         """
-        x, y, z = position[0], position[1], position[2]
+        x, y, z = pos
 
-        # Normaliser si nécessaire
-        if not self.normalized:
-            x_norm = x / self.distance_unit
-            y_norm = y / self.distance_unit
-            z_norm = z / self.distance_unit
-        else:
-            x_norm = x
-            y_norm = y
-            z_norm = z
+        # Distances aux primaires
+        r1 = np.sqrt((x + self.mu) ** 2 + y**2 + z**2)
+        r2 = np.sqrt((x - 1 + self.mu) ** 2 + y**2 + z**2)
 
-        # Positions relatives aux primaires
-        x1 = x_norm + self.mu  # Position relative au primaire 1
-        x2 = x_norm - 1.0 + self.mu  # Position relative au primaire 2
-
-        # Distances
-        r1_squared = x1**2 + y_norm**2 + z_norm**2
-        r2_squared = x2**2 + y_norm**2 + z_norm**2
-
-        r1 = np.sqrt(r1_squared)
-        r2 = np.sqrt(r2_squared)
-
-        # Éviter singularités
-        if r1 < 1e-10 or r2 < 1e-10:
-            raise ValueError("Position trop proche d'un primaire pour calcul jacobien")
+        # Dérivées secondes du potentiel effectif U*
+        # U* = 1/2(x² + y²) + (1-μ)/r1 + μ/r2 + 1/2·μ(1-μ)
 
         r1_3 = r1**3
         r1_5 = r1**5
         r2_3 = r2**3
         r2_5 = r2**5
 
-        # Coefficients pour simplifier
-        c1 = 1.0 - self.mu
-        c2 = self.mu
-
-        # Dérivées secondes du pseudo-potentiel
-        # U*_xx
-        U_xx = (
-            -c1 * (2 * x1**2 - y_norm**2 - z_norm**2) / r1_5
-            - c2 * (2 * x2**2 - y_norm**2 - z_norm**2) / r2_5
-            - c1 / r1_3
-            - c2 / r2_3
-            + 1.0
+        # Composantes de la matrice hessienne
+        Uxx = (
+            1
+            - (1 - self.mu) / r1_3
+            - self.mu / r2_3
+            + 3 * (1 - self.mu) * (x + self.mu) ** 2 / r1_5
+            + 3 * self.mu * (x - 1 + self.mu) ** 2 / r2_5
         )
 
-        # U*_yy
-        U_yy = (
-            -c1 * (2 * y_norm**2 - x1**2 - z_norm**2) / r1_5
-            - c2 * (2 * y_norm**2 - x2**2 - z_norm**2) / r2_5
-            - c1 / r1_3
-            - c2 / r2_3
-            + 1.0
+        Uyy = (
+            1
+            - (1 - self.mu) / r1_3
+            - self.mu / r2_3
+            + 3 * (1 - self.mu) * y**2 / r1_5
+            + 3 * self.mu * y**2 / r2_5
         )
 
-        # U*_zz
-        U_zz = (
-            -c1 * (2 * z_norm**2 - x1**2 - y_norm**2) / r1_5
-            - c2 * (2 * z_norm**2 - x2**2 - y_norm**2) / r2_5
-            - c1 / r1_3
-            - c2 / r2_3
+        Uzz = (
+            -(1 - self.mu) / r1_3
+            - self.mu / r2_3
+            + 3 * (1 - self.mu) * z**2 / r1_5
+            + 3 * self.mu * z**2 / r2_5
         )
 
-        # U*_xy = U*_yx
-        U_xy = -3 * c1 * x1 * y_norm / r1_5 - 3 * c2 * x2 * y_norm / r2_5
+        Uxy = (
+            3 * (1 - self.mu) * (x + self.mu) * y / r1_5
+            + 3 * self.mu * (x - 1 + self.mu) * y / r2_5
+        )
 
-        # U*_xz = U*_zx
-        U_xz = -3 * c1 * x1 * z_norm / r1_5 - 3 * c2 * x2 * z_norm / r2_5
+        Uxz = (
+            3 * (1 - self.mu) * (x + self.mu) * z / r1_5
+            + 3 * self.mu * (x - 1 + self.mu) * z / r2_5
+        )
 
-        # U*_yz = U*_zy
-        U_yz = -3 * c1 * y_norm * z_norm / r1_5 - 3 * c2 * y_norm * z_norm / r2_5
+        Uyz = 3 * (1 - self.mu) * y * z / r1_5 + 3 * self.mu * y * z / r2_5
 
         # Construction de la matrice jacobienne 6×6
-        A = np.zeros((6, 6))
+        J = np.zeros((6, 6))
 
-        # Bloc identité 3×3 en haut à droite (dérivée position = vitesse)
-        A[0:3, 3:6] = np.eye(3)
+        J[0:3, 3:6] = np.eye(3)
 
-        # Bloc des dérivées secondes (en bas à gauche)
-        A[3, 0] = U_xx
-        A[3, 1] = U_xy
-        A[3, 2] = U_xz
-        A[3, 4] = 2.0  # Terme de Coriolis
+        J[3, 0] = Uxx
+        J[3, 1] = Uxy
+        J[3, 2] = Uxz
+        J[4, 0] = Uxy
+        J[4, 1] = Uyy
+        J[4, 2] = Uyz
+        J[5, 0] = Uxz
+        J[5, 1] = Uyz
+        J[5, 2] = Uzz
 
-        A[4, 0] = U_xy
-        A[4, 1] = U_yy
-        A[4, 2] = U_yz
-        A[4, 3] = -2.0  # Terme de Coriolis
+        J[3, 4] = 2.0
+        J[4, 3] = -2.0
 
-        A[5, 0] = U_xz
-        A[5, 1] = U_yz
-        A[5, 2] = U_zz
+        return J
 
-        return A
+    def _analyze_stability(self, eigenvalues: np.ndarray) -> str:
+        """Détermine le type de stabilité d'après les valeurs propres.
 
-    def _compute_eigenvalues(self, position: np.ndarray) -> np.ndarray:
-        """
-        Calcule les valeurs propres de la matrice jacobienne.
-
-        Les valeurs propres λ satisfont :
-            det(A - λI) = 0
-
-        Pour les points de Lagrange, on obtient 6 valeurs propres qui
-        déterminent la stabilité :
-
-        Points colinéaires (L1, L2, L3) :
-            - 2 valeurs propres réelles : ±λ_r (mode instable)
-            - 4 valeurs propres imaginaires pures : ±iλ_i1, ±iλ_i2 (modes oscillatoires)
-            → INSTABLE (exponentielle croissante)
-
-        Points triangulaires (L4, L5) :
-            Si μ < μ_crit ≈ 0.0385 :
-                - 6 valeurs propres imaginaires pures
-                → STABLE (oscillations périodiques)
-            Si μ > μ_crit :
-                - 2 valeurs propres réelles
-                - 4 valeurs propres imaginaires
-                → INSTABLE
+        Classification :
+        - 'stable' : Toutes les valeurs propres ont Re(λ) ≤ 0
+        - 'unstable' : Au moins une valeur propre avec Re(λ) > 0
+        - 'saddle' : Mélange de valeurs propres stables et instables
 
         Args:
-            position: Position [x, y, z]
+            eigenvalues: Valeurs propres (6 complexes)
 
         Returns:
-            Array de 6 valeurs propres complexes
-
-        Interprétation physique :
-            - Re(λ) > 0 : mode exponentiellement croissant (instable)
-            - Re(λ) = 0 : mode oscillatoire (neutre)
-            - Re(λ) < 0 : mode exponentiellement décroissant (stable)
+            Type de stabilité ('stable', 'unstable', 'saddle')
         """
-        # Calculer la matrice jacobienne
-        A = self._compute_jacobian_matrix(position)
+        real_parts = eigenvalues.real
 
-        # Calculer les valeurs propres
-        eigenvalues = np.linalg.eigvals(A)
+        tol = 1e-10
 
-        # Trier par partie réelle décroissante
-        eigenvalues = eigenvalues[np.argsort(-eigenvalues.real)]
+        n_positive = np.sum(real_parts > tol)
+        n_negative = np.sum(real_parts < -tol)
 
-        return eigenvalues
+        if n_positive == 0:
+            return "stable"
+        elif n_negative == 0:
+            return "unstable"
+        else:
+            return "saddle"
 
-    def analyze_stability(self, point: LagrangePoint) -> Dict:
-        """
-        Analyse détaillée de la stabilité d'un point de Lagrange.
+    def _compute_jacobi_constant(self, state: StateVector) -> float:
+        """Calcule la constante de Jacobi au point donné.
+
+        C = 2U*(x,y,z) - v² où v=0 au point de Lagrange
 
         Args:
-            point: Point à analyser
+            pos: Position [x, y, z]
 
         Returns:
-            Dictionnaire avec :
-                - 'eigenvalues': valeurs propres
-                - 'stable_modes': nombre de modes stables
-                - 'unstable_modes': nombre de modes instables
-                - 'neutral_modes': nombre de modes neutres
-                - 'dominant_timescale': échelle de temps du mode dominant (jours)
-                - 'classification': description textuelle
-
-        Exemple pour L2 (Soleil-Terre) :
-            - Mode instable : τ ≈ 23 jours (document 1)
-            - Modes oscillatoires : périodes ~140-200 jours
+            Valeur de la constante de Jacobi
         """
-        # Calculer le point
-        info = self.compute_lagrange_point(point)
-        position = info.position
+        r1, r2 = distance_to_primary(state, self.mu, 1 - self.mu)
+        x, y = state[:2]
 
-        # Normaliser si nécessaire
-        if not self.normalized:
-            pos_norm = position / self.distance_unit
-        else:
-            pos_norm = position
+        # Potentiel effectif
+        U_star = (
+            0.5 * (x**2 + y**2)
+            + (1 - self.mu) / r1
+            + self.mu / r2
+            + 0.5 * self.mu * (1 - self.mu)
+        )
 
-        # Calculer valeurs propres
-        eigenvalues = self._compute_eigenvalues(pos_norm)
+        C = 2 * U_star
 
-        # Analyser les valeurs propres
-        tolerance = 1e-10
+        return C
 
-        stable_modes = 0
-        unstable_modes = 0
-        neutral_modes = 0
+    def _create_lagrange_point_info(
+        self, position: np.ndarray, name: LagrangePoint, is_collinear: bool
+    ) -> LagrangePointInfo:
+        """Crée l'information complète pour un point de Lagrange.
 
-        real_eigenvalues = []
-        imaginary_eigenvalues = []
+        Args:
+            position: Position du point [x, y, z]
+            name: Nom du point (L1, L2, etc.)
+            is_collinear: True si point colinéaire
 
-        for lam in eigenvalues:
-            real_part = lam.real
-            imag_part = abs(lam.imag)
+        Returns:
+            LagrangePointInfo contenant toutes les informations
+        """
+        J = self._compute_jacobian_matrix(position)
 
-            if abs(real_part) > tolerance:
-                # Mode avec composante réelle
-                if real_part > 0:
-                    unstable_modes += 1
-                else:
-                    stable_modes += 1
-                real_eigenvalues.append(lam)
-            else:
-                # Mode purement imaginaire
-                neutral_modes += 1
-                imaginary_eigenvalues.append(lam)
+        eigenvalues, eigenvectors = np.linalg.eig(J)
 
-        # Échelle de temps du mode dominant
-        # Pour mode instable : τ = 1/|Re(λ)|
-        # Pour mode oscillatoire : T = 2π/|Im(λ)|
+        idx = np.argsort(-eigenvalues.real)  # type: ignore
+        eigenvalues = eigenvalues[idx]
+        eigenvectors = eigenvectors[:, idx]
 
-        if len(real_eigenvalues) > 0:
-            # Mode instable dominant
-            max_real = max(abs(lam.real) for lam in real_eigenvalues)
+        stability = self._analyze_stability(eigenvalues)
+        C = self._compute_jacobi_constant(position)
 
-            if not self.normalized:
-                # Convertir en unités physiques
-                omega = Constants.OMEGA_EARTH
-                timescale_seconds = 1.0 / (max_real * omega)
-            else:
-                # En unités normalisées (période = 2π)
-                timescale_seconds = 1.0 / max_real * (2 * np.pi / Constants.OMEGA_EARTH)
+        return LagrangePointInfo(
+            position=position,
+            name=name,
+            eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
+            stability_type=stability,
+            is_collinear=is_collinear,
+            jacobi_constant=C,
+        )
 
-            timescale_days = timescale_seconds / 86400.0
-            mode_type = "instable (exponentiel)"
-        else:
-            # Mode oscillatoire dominant
-            max_imag = max(abs(lam.imag) for lam in imaginary_eigenvalues)
+    def compute_all_lagrange_points(self) -> Dict[LagrangePoint, LagrangePointInfo]:
+        """Calcule tous les points de Lagrange avec analyse complète.
 
-            if not self.normalized:
-                omega = Constants.OMEGA_EARTH
-                timescale_seconds = 2 * np.pi / (max_imag * omega)
-            else:
-                timescale_seconds = (
-                    2 * np.pi / max_imag * (2 * np.pi / Constants.OMEGA_EARTH)
-                )
+        Returns:
+            Dictionnaire {nom: LagrangePointInfo} pour L1-L5
+        """
+        points = {}
 
-            timescale_days = timescale_seconds / 86400.0
-            mode_type = "oscillatoire (période)"
-
-        # Classification textuelle
-        if point in [LagrangePoint.L1, LagrangePoint.L2, LagrangePoint.L3]:
-            classification = (
-                f"{point.value} : Point colinéaire INSTABLE\n"
-                f"  - {unstable_modes} modes instables\n"
-                f"  - {neutral_modes} modes oscillatoires\n"
-                f"  - Échelle de temps dominante : {timescale_days:.1f} jours ({mode_type})"
+        for name, compute_func in [
+            (LagrangePoint.L1, self.compute_l1),
+            (LagrangePoint.L2, self.compute_l2),
+            (LagrangePoint.L3, self.compute_l3),
+        ]:
+            pos = compute_func()
+            points[name] = self._create_lagrange_point_info(
+                pos, name, is_collinear=True
             )
-        else:
-            if self.mu < self.mu_critical:
-                classification = (
-                    f"{point.value} : Point triangulaire STABLE (μ < μ_crit)\n"
-                    f"  - {neutral_modes} modes oscillatoires\n"
-                    f"  - Période dominante : {timescale_days:.1f} jours"
-                )
-            else:
-                classification = (
-                    f"{point.value} : Point triangulaire INSTABLE (μ > μ_crit)\n"
-                    f"  - {unstable_modes} modes instables\n"
-                    f"  - {neutral_modes} modes oscillatoires\n"
-                    f"  - Échelle de temps : {timescale_days:.1f} jours ({mode_type})"
-                )
 
-        return {
-            "eigenvalues": eigenvalues,
-            "stable_modes": stable_modes,
-            "unstable_modes": unstable_modes,
-            "neutral_modes": neutral_modes,
-            "dominant_timescale_days": timescale_days,
-            "mode_type": mode_type,
-            "classification": classification,
-        }
+        for name, compute_func in [
+            (LagrangePoint.L4, self.compute_l4),
+            (LagrangePoint.L5, self.compute_l5),
+        ]:
+            pos = compute_func()
+            points[name] = self._create_lagrange_point_info(
+                pos, name, is_collinear=False
+            )
+
+        return points
+
+    def get_stable_manifold_direction(
+        self, point_name: LagrangePoint
+    ) -> Optional[np.ndarray]:
+        """Retourne la direction du vecteur propre stable (pour station-keeping).
+
+        Cette méthode extrait les composantes position du vecteur propre
+        associé à la valeur propre stable (λ < 0 avec |λ| maximal).
+
+        Args:
+            point_name: Nom du point ('L1', 'L2', etc.)
+
+        Returns:
+            Vecteur direction [x, y, z] normalisé, ou None si pas de mode stable
+        """
+        info = self.compute_all_lagrange_points()[point_name]
+
+        # Trouver la valeur propre stable avec la plus grande |Re(λ)| < 0
+        stable_idx = None
+        max_magnitude = 0.0
+
+        for i, lam in enumerate(info.eigenvalues):
+            if lam.real < 0 and abs(lam.real) > max_magnitude:
+                max_magnitude = abs(lam.real)
+                stable_idx = i
+
+        if stable_idx is None:
+            return None
+
+        direction = info.eigenvectors[:3, stable_idx].real
+        return direction / np.linalg.norm(direction)
+
+
+def print_lagrange_points_summary(
+    points: Dict[str, LagrangePointInfo], mu: float, verbose: bool = True
+) -> None:
+    """Affiche un résumé des points de Lagrange calculés.
+
+    Args:
+        points: Dictionnaire des points de Lagrange
+        mu: Paramètre de masse
+        verbose: Si True, affiche les valeurs propres
+    """
+    print("\n" + "=" * 70)
+    print(f"POINTS DE LAGRANGE - SYSTÈME SOLEIL-TERRE (μ = {mu:.6e})")
+    print("=" * 70)
+
+    for name in ["L1", "L2", "L3", "L4", "L5"]:
+        info = points[name]
+        pos = info.position
+
+        print(f"\n{name}:")
+        print(f"  Position: ({pos[0]:+.10f}, {pos[1]:+.10f}, {pos[2]:+.10f})")
+        print(f"  Type: {'Colinéaire' if info.is_collinear else 'Triangulaire'}")
+        print(f"  Stabilité: {info.stability_type.upper()}")
+        print(f"  Constante Jacobi: C = {info.jacobi_constant:.10f}")
+
+        if verbose:
+            print(f"  Valeurs propres:")
+            for i, lam in enumerate(info.eigenvalues):
+                if abs(lam.imag) < 1e-10:
+                    print(f"    λ{i+1} = {lam.real:+.6f}")
+                else:
+                    print(f"    λ{i+1} = {lam.real:+.6f} {lam.imag:+.6f}i")
+
+    print("\n" + "=" * 70)

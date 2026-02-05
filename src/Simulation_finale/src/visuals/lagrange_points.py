@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from typing import List, Tuple, Optional
 
-from src.simulation.calcul_pos_lagrange import (
+from src.simulation.lagrange_points import (
     LagrangePointCalculator,
     LagrangePoint,
     LagrangePointInfo,
@@ -78,19 +78,14 @@ class LagrangeVisualizer:
         self.distance_unit = distance_unit
         self.normalized = normalized
 
-        # Calculateur de points de Lagrange
         self.calculator = LagrangePointCalculator(
-            mu=mu, distance_unit=distance_unit, normalized=normalized
+            self.mu, self.distance_unit, self.normalized
         )
 
-        # Calcul des 5 points de Lagrange
         self.lagrange_points = self.calculator.compute_all_lagrange_points()
 
-        # Positions des primaires (normalisées)
-        self.x1 = -mu  # Primaire 1 (plus massif)
-        self.x2 = 1.0 - mu  # Primaire 2 (moins massif)
-
-    # ========== POTENTIEL EFFECTIF ==========
+        self.x1 = -mu
+        self.x2 = 1.0 - mu
 
     def effective_potential(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """
@@ -119,15 +114,12 @@ class LagrangeVisualizer:
         Returns:
             Valeurs de Ω sur la grille
         """
-        # Distances aux deux primaires
         r1 = np.sqrt((x + self.mu) ** 2 + y**2)
         r2 = np.sqrt((x - 1.0 + self.mu) ** 2 + y**2)
 
-        # Éviter division par zéro (très proche des primaires)
         r1 = np.maximum(r1, 1e-6)
         r2 = np.maximum(r2, 1e-6)
 
-        # Potentiel effectif
         omega = (
             0.5 * (x**2 + y**2)  # Centrifuge
             + (1.0 - self.mu) / r1  # Gravité primaire 1
@@ -154,8 +146,6 @@ class LagrangeVisualizer:
         """
         return 2.0 * self.effective_potential(x, y)
 
-    # ========== GRAPHIQUES PRINCIPAUX ==========
-
     def plot_lagrange_points(
         self, figsize: Tuple[float, float] = (12, 10), save_path: Optional[str] = None
     ) -> plt.Figure:  # type: ignore
@@ -177,28 +167,20 @@ class LagrangeVisualizer:
         """
         fig, ax = plt.subplots(figsize=figsize)
 
-        # Grille pour les contours
         x_range = np.linspace(-1.5, 1.5, 400)
         y_range = np.linspace(-1.5, 1.5, 400)
         X, Y = np.meshgrid(x_range, y_range)
 
-        # Potentiel effectif
         Omega = self.effective_potential(X, Y)
-
-        # Limiter les valeurs extrêmes pour la visualisation
         Omega_safe = np.clip(Omega, np.percentile(Omega, 1), np.percentile(Omega, 99))
 
-        # Contours du potentiel
         contour = ax.contourf(
             X, Y, Omega_safe, levels=30, cmap="viridis", alpha=0.6, extend="both"
         )
-
-        # Lignes de niveau
         contour_lines = ax.contour(
             X, Y, Omega_safe, levels=15, colors="white", alpha=0.3, linewidths=0.5
         )
 
-        # Barre de couleur
         cbar = plt.colorbar(contour, ax=ax)
         cbar.set_label("Potentiel effectif Ω(x,y)", rotation=270, labelpad=20)
 
@@ -276,7 +258,6 @@ class LagrangeVisualizer:
             )
 
         # Courbes de vitesse nulle (Hill's regions)
-        # On trace pour C = C_L1, C_L2, C_L3
         C_values = [
             self.lagrange_points[LagrangePoint.L1].jacobi_constant,
             self.lagrange_points[LagrangePoint.L2].jacobi_constant,
@@ -297,7 +278,6 @@ class LagrangeVisualizer:
                 alpha=0.8,
             )
 
-        # Mise en forme
         ax.set_xlabel("x (normalisé)", fontsize=12)
         ax.set_ylabel("y (normalisé)", fontsize=12)
         ax.set_title(
@@ -348,31 +328,26 @@ class LagrangeVisualizer:
         """
         fig, ax = plt.subplots(figsize=figsize)
 
-        # Grille
         x_range = np.linspace(-1.8, 1.8, 500)
         y_range = np.linspace(-1.5, 1.5, 500)
         X, Y = np.meshgrid(x_range, y_range)
 
-        # Jacobi constant sur la grille
         C_grid = self.jacobi_constant_curve(X, Y)
 
-        # Valeurs de C à tracer
         if C_values is None:
-            # Valeurs intéressantes : autour des points de Lagrange
             C_L1 = self.lagrange_points[LagrangePoint.L1].jacobi_constant
             C_L2 = self.lagrange_points[LagrangePoint.L2].jacobi_constant
             C_L3 = self.lagrange_points[LagrangePoint.L3].jacobi_constant
             C_L4 = self.lagrange_points[LagrangePoint.L4].jacobi_constant
 
             C_values = [
-                C_L3,  # Ouverture L3
-                C_L1,  # Ouverture L1
-                C_L2,  # Ouverture L2
-                C_L4,  # Cas triangulaire
-                C_L2 + 0.5,  # Régions plus restreintes
+                C_L3,
+                C_L1,
+                C_L2,
+                C_L4,
+                C_L2 + 0.5,
             ]
 
-        # Carte de fond : valeurs de C
         im = ax.imshow(
             C_grid,
             extent=[x_range[0], x_range[-1], y_range[0], y_range[-1]],  # type: ignore
@@ -399,10 +374,8 @@ class LagrangeVisualizer:
                 linestyles="-",
             )
 
-            # Étiquette
             ax.clabel(contour, inline=True, fontsize=9, fmt=f"C={C_val:.3f}")
 
-        # Primaires
         ax.plot(
             self.x1,
             0,
@@ -426,7 +399,6 @@ class LagrangeVisualizer:
             zorder=10,
         )
 
-        # Points de Lagrange
         for point in [LagrangePoint.L1, LagrangePoint.L2, LagrangePoint.L3]:
             pos = self.lagrange_points[point].position
             if not self.normalized:
@@ -494,7 +466,6 @@ class LagrangeVisualizer:
         """
         fig, ax = plt.subplots(figsize=figsize)
 
-        # Position du point
         info = self.lagrange_points[point]
         pos = info.position
         if not self.normalized:
@@ -502,7 +473,6 @@ class LagrangeVisualizer:
 
         x0, y0 = pos[0], pos[1]
 
-        # Grille locale
         n_points = 20
         x_range = np.linspace(x0 - window_size, x0 + window_size, n_points)
         y_range = np.linspace(y0 - window_size, y0 + window_size, n_points)
@@ -542,7 +512,6 @@ class LagrangeVisualizer:
         contour = ax.contourf(X, Y, Omega, levels=20, cmap="RdYlBu_r", alpha=0.6)
         plt.colorbar(contour, ax=ax, label="Potentiel effectif Ω")
 
-        # Champ de vecteurs
         quiver = ax.quiver(
             X,
             Y,
@@ -769,7 +738,7 @@ def generate_all_plots(output_dir: str = "./figures_lagrange"):
 
     # Champs de stabilité
     for point in [LagrangePoint.L1, LagrangePoint.L2, LagrangePoint.L4]:
-        sun_earth.plot_stability_field(point).savefig(
+        sun_earth.plot_stability_field(point, window_size=0.015).savefig(
             os.path.join(output_dir, f"lagrange_sun_earth_stability_{point.value}.png")
         )
 

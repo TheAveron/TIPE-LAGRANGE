@@ -1,6 +1,11 @@
 from src.simulation.constants import Constants
-from src.simulation.calcul_pos_lagrange import LagrangePointCalculator, LagrangePoint
+from src.simulation.lagrange_points import (
+    LagrangePointCalculator,
+    LagrangePoint,
+    Stability,
+)
 import numpy as np
+
 
 # ========== TESTS COMPLETS DU MODULE ==========
 
@@ -18,14 +23,14 @@ def test_lagrange_points():
     print("TEST 1: Calcul des points colinéaires (L1, L2, L3)")
     print("-" * 70)
 
-    # Système Soleil-Terre
-    calc = LagrangePointCalculator(
-        mu=Constants.MU_RATIO_SUN_EARTH, distance_unit=Constants.AU, normalized=False
-    )
+    # Système Soleil-Terre)
+
+    calc = LagrangePointCalculator(Constants.MU_RATIO_SUN_EARTH)
+    points = calc.compute_all_lagrange_points()
 
     # L1
     print("\n1.1. Point L1 (entre Soleil et Terre)")
-    l1_info = calc.compute_l1()
+    l1_info = points[LagrangePoint.L1]
     print(l1_info)
 
     # Vérifications
@@ -46,7 +51,7 @@ def test_lagrange_points():
 
     # L2
     print("1.2. Point L2 (au-delà de la Terre)")
-    l2_info = calc.compute_l2()
+    l2_info = points[LagrangePoint.L2]
     print(l2_info)
 
     # Vérifications
@@ -65,7 +70,7 @@ def test_lagrange_points():
 
     # L3
     print("1.3. Point L3 (opposé à la Terre)")
-    l3_info = calc.compute_l3()
+    l3_info = points[LagrangePoint.L3]
     print(l3_info)
 
     # Vérifications
@@ -88,7 +93,7 @@ def test_lagrange_points():
 
     # L4
     print("\n2.1. Point L4 (triangle équilatéral, y > 0)")
-    l4_info = calc.compute_l4()
+    l4_info = points[LagrangePoint.L4]
     print(l4_info)
 
     # Vérifications géométriques
@@ -119,7 +124,7 @@ def test_lagrange_points():
 
     # L5
     print("2.2. Point L5 (triangle équilatéral, y < 0)")
-    l5_info = calc.compute_l5()
+    l5_info = points[LagrangePoint.L5]
     print(l5_info)
 
     # Vérifications similaires
@@ -141,7 +146,6 @@ def test_lagrange_points():
     for point_enum, info in all_points.items():
         print(f"  {point_enum.value}: C = {info.jacobi_constant:.6f}")
 
-    # Vérifier l'ordre : C(L1) > C(L2) > C(L3)
     C_l1 = all_points[LagrangePoint.L1].jacobi_constant
     C_l2 = all_points[LagrangePoint.L2].jacobi_constant
     C_l3 = all_points[LagrangePoint.L3].jacobi_constant

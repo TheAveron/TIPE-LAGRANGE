@@ -4,9 +4,9 @@ from typing import Optional
 import numpy as np
 
 from .constants import Constants
-from .coordinates import CoordinateTransformer, PositionVector, StateVector
-from .CRTBP_model_dynamics import BaseDynamics, CRTBP3Body
-from .dynamics_conf import DynamicsConfig, DynamicsModel
+from .coordinates import PositionVector, StateVector
+from .CRTBP_model_dynamics import BaseDynamics
+from .dynamics_conf import DynamicsConfig
 from .Ephem_handler import EphemerisManager
 
 
@@ -51,10 +51,9 @@ class HighFidelityDynamics(BaseDynamics):
         """
         super().__init__(config)
 
-        if ephemeris_manager is None:
-            self.ephem = EphemerisManager()
-            self._owns_ephem = True
-        else:
+        self.ephem = EphemerisManager()
+        self._owns_ephem = True
+        if not ephemeris_manager is None:
             self.ephem = ephemeris_manager
             self._owns_ephem = False
 
@@ -157,10 +156,9 @@ class HighFidelityDynamics(BaseDynamics):
 
         acc_gravity = self._compute_gravitational_acceleration(t, position)
 
+        acc_srp = np.zeros(3)
         if self.config.include_srp:
             acc_srp = self._compute_srp_acceleration(t, position)
-        else:
-            acc_srp = np.zeros(3)
 
         if self.config.include_relativity:
             acc_relativity = self._compute_relativistic_acceleration(
@@ -270,7 +268,7 @@ class HighFidelityDynamics(BaseDynamics):
         r_vec = position - pos_sun
         r_mag = np.linalg.norm(r_vec)
 
-        if r_mag < 1e3:
+        if r_mag < 1e4:
             return np.zeros(3)
 
         r_hat = r_vec / r_mag
@@ -311,7 +309,7 @@ class HighFidelityDynamics(BaseDynamics):
         r_vec = position - pos_sun
         r_mag = np.linalg.norm(r_vec)
 
-        if r_mag < 1e3:
+        if r_mag < 1e4:
             return np.zeros(3)
 
         v_rel = velocity - vel_sun

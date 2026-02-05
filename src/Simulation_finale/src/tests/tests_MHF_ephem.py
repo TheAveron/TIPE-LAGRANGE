@@ -134,7 +134,7 @@ def test_high_fidelity_model():
     # Vérifier que SRP pointe dans la direction anti-solaire
     sun_to_sc = pos_l2 - pos_sun
     sun_to_sc_hat = sun_to_sc / np.linalg.norm(sun_to_sc)
-    acc_srp_hat = acc_srp / acc_srp_magnitude if acc_srp_magnitude > 0 else np.zeros(3)
+    acc_srp_hat = acc_srp / acc_srp_magnitude if acc_srp_magnitude > 0 else np.zeros(3)  # type: ignore
 
     dot_product = np.dot(sun_to_sc_hat, acc_srp_hat)
     print(f"\nDirection SRP vs Soleil→SC: {dot_product:.6f}")
@@ -670,7 +670,7 @@ def test_crtbp_vs_ephemeris_comparison():
     state_ecliptic_0 = transformer.rlp_to_ecliptic(state_rlp_0, t0)
 
     # Durée de propagation: 30 jours
-    t_span = (0.0, 30 * 86400.0)
+    t_span = (0.0, 30 * 86400.0 * 10)
 
     print(f"Propagation sur {t_span[1]/86400:.0f} jours...\n")
 
