@@ -1,7 +1,7 @@
-from src import *
-from src.simulation.orbit_generator import OrbitGenerator
 import sys
 
+from src import *
+from src.simulation.orbit_generator import OrbitGenerator
 
 if __name__ == "__main__":
     # constant_validation()

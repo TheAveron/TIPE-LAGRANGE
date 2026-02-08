@@ -1,11 +1,8 @@
-from src.simulation.constants import Constants
-from src.simulation.lagrange_points import (
-    LagrangePointCalculator,
-    LagrangePoint,
-    Stability,
-)
 import numpy as np
 
+from src.simulation.constants import Constants
+from src.simulation.lagrange_points import (LagrangePoint,
+                                            LagrangePointCalculator, Stability)
 
 # ========== TESTS COMPLETS DU MODULE ==========
 

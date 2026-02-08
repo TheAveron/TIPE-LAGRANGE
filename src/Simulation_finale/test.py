@@ -1,7 +1,8 @@
+import copy
 import random
+
 import matplotlib.pyplot as plt
 import numpy as np
-import copy
 
 H = 10
 L = 10

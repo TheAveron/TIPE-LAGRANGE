@@ -16,10 +16,11 @@ Auteur: Assistant
 Date: 2025-01-10
 """
 
-import numpy as np
-from typing import Optional, Dict
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, Optional
+
+import numpy as np
 
 from .constants import Constants, NumericalConstants
 from .CRTBP_model_dynamics import CRTBP3Body
@@ -587,7 +588,7 @@ class LagrangePointCalculator:
         U_yz = -3 * c1 * y_norm * z_norm / r1_5 - 3 * c2 * y_norm * z_norm / r2_5
 
         # Construction de la matrice jacobienne 6×6
-        A = np.zeros((6, 6))
+        A = np.zeros((6, 6))  # type: ignore
 
         # Bloc identité 3×3 en haut à droite (dérivée position = vitesse)
         A[0:3, 3:6] = np.eye(3)

@@ -15,15 +15,15 @@ Références :
 - Szebehely (1967) : Theory of Orbits
 """
 
-import numpy as np
-from typing import Optional, Dict
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, Optional
+
+import numpy as np
 
 from .constants import Constants, NumericalConstants
 from .CRTBP_model_dynamics import CRTBP3Body
 from .dynamics_conf import DynamicsConfig, DynamicsModel
-
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
 

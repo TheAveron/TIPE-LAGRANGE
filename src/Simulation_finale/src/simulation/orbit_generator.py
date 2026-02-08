@@ -228,7 +228,17 @@ class OrbitGenerator:
             Elle produit des orbites très proches de la réalité JWST.
         """
         # 1. Direction variété stable
-        stable_dir = self.lp_calc.get_stable_manifold_direction(self.lagrange_point)
+        # Use eigenvector from linearization (stable manifold direction)
+        try:
+            stable_dir = self._compute_stable_manifold_direction()
+        except Exception as e:
+            warnings.warn(
+                f"Pas de variété stable trouvée pour {self.lagrange_point.value}: {e}. "
+                "Utilisation de la méthode linéaire."
+            )
+            return self.generate_quasi_halo_linear(
+                target_amplitude_y, target_amplitude_z
+            )
 
         if stable_dir is None:
             warnings.warn(
@@ -243,7 +253,11 @@ class OrbitGenerator:
         # Petit déplacement depuis L2 dans la direction stable
         epsilon = 1000.0 / Constants.AU  # 1000 km normalisé
 
-        position_norm = self.lp_info.position / Constants.AU
+        # CORRECTION: Calculer position L2 dans référentiel CRTBP
+        # L2 est à x = 1 + (μ/3)^(1/3) en coordonnées normalisées
+        x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
+        position_norm = np.array([x_l2_norm, 0.0, 0.0])
+
         initial_state = np.concatenate(
             [
                 position_norm + epsilon * stable_dir,
@@ -360,6 +374,67 @@ class OrbitGenerator:
 
         return state, amplitudes
 
+    def _compute_stable_manifold_direction(self) -> Optional[np.ndarray]:
+        """
+        Computes the stable manifold direction at a Lagrange point.
+
+        Uses linearization around the equilibrium point.
+        The stable manifold direction is the eigenvector corresponding
+        to the eigenvalue with negative real part.
+
+        Returns:
+            Normalized direction vector (3D position space) or None if computation fails
+        """
+        from scipy.linalg import eig
+
+        # Get Lagrange point position
+        if self.lagrange_point == LagrangePoint.L2:
+            lp_pos = self.lp_info.position / Constants.AU
+        else:
+            # For other points, compute their positions
+            if self.lagrange_point == LagrangePoint.L1:
+                lp_pos = self.lp_calc.compute_l1().position / Constants.AU
+            else:
+                raise ValueError(f"Unsupported Lagrange point: {self.lagrange_point}")
+
+        # Compute Jacobian at the Lagrange point
+        # State = [x, y, z, vx, vy, vz]
+        state_lp = np.concatenate([lp_pos, np.zeros(3)])
+
+        # Numerical differentiation to compute Jacobian
+        h = 1e-6
+        jacobian = np.zeros((6, 6))
+
+        for i in range(6):
+            state_plus = state_lp.copy()
+            state_plus[i] += h
+
+            state_minus = state_lp.copy()
+            state_minus[i] -= h
+
+            f_plus = self.crtbp.equations_of_motion(0, state_plus)
+            f_minus = self.crtbp.equations_of_motion(0, state_minus)
+
+            jacobian[:, i] = (f_plus - f_minus) / (2 * h)
+
+        # Compute eigenvalues and eigenvectors
+        result = eig(jacobian)
+        eigenvalues = result[0]
+        eigenvectors = result[1]
+
+        # Find the pair of eigenvalues with negative real part (stable)
+        stable_indices = np.where(np.real(eigenvalues) < -1e-6)[0]
+
+        if len(stable_indices) == 0:
+            return None
+
+        # Take the most negative eigenvalue
+        idx = stable_indices[np.argmin(np.real(eigenvalues[stable_indices]))]
+        stable_eigenvector = np.real(eigenvectors[:, idx])
+
+        # Return position component normalized
+        return stable_eigenvector[:3] / np.linalg.norm(stable_eigenvector[:3])
+
     def _rk4_step(self, state: np.ndarray, t: float, dt: float) -> np.ndarray:
         """
         Un pas d'intégration Runge-Kutta 4.
@@ -404,7 +479,9 @@ class OrbitGenerator:
             Utilisée en fallback si variétés stables échouent.
         """
         L_star = Constants.AU
-        pos_l2_norm = self.lp_info.position / L_star
+
+        x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
+        pos_l2_norm = np.array([x_l2_norm, 0.0, 0.0])
 
         Ay_norm = target_amplitude_y / L_star
         Az_norm = target_amplitude_z / L_star
@@ -488,7 +565,7 @@ class OrbitGenerator:
         Az = amplitude_z / L_star
 
         # Position L2
-        x_l2 = self.lp_info.position[0] / L_star
+        x_l2 = 1.0 + (self.mu / 3.0) ** (1 / 3)
 
         # Fréquences (approximatives pour L2)
         omega_y = 1.0  # Fréquence normalisée
@@ -608,7 +685,7 @@ class OrbitGenerator:
             # Suivre amplitudes
             y_max = max(y_max, abs(current_state[1]))
             z_max = max(z_max, abs(current_state[2]))
-            x_l2_norm = self.lp_info.position[0] / Constants.AU
+            x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
             x_max = max(x_max, abs(current_state[0] - x_l2_norm))
 
             # Suivre Jacobi

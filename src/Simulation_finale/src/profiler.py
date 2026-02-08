@@ -8,9 +8,10 @@ functions:
 import cProfile
 import io
 import pstats
-import tracemalloc
 import threading
 import time
+import tracemalloc
+
 import matplotlib.pyplot as plt
 
 

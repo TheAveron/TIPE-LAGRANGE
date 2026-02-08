@@ -10,17 +10,16 @@ Ce module génère des graphiques pour comprendre :
 
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
-from src.simulation.lagrange_points import (
-    LagrangePointCalculator,
-    LagrangePoint,
-    LagrangePointInfo,
-)
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Circle
+
 from src.simulation.constants import Constants
+from src.simulation.lagrange_points import (LagrangePoint,
+                                            LagrangePointCalculator,
+                                            LagrangePointInfo)
 
 # Configuration matplotlib globale
 plt.rcParams.update(

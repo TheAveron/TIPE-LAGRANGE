@@ -1,6 +1,7 @@
+import numpy as np
+
 from src.simulation.CRTBP_model_dynamics import CRTBP3Body
 from src.simulation.dynamics_conf import DynamicsConfig, DynamicsModel
-import numpy as np
 
 
 def test_crtbp_model():

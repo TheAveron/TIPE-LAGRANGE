@@ -5,20 +5,18 @@ Ce script teste et valide la génération d'orbites initiales
 pour JWST autour de L2.
 """
 
-import numpy as np
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.simulation.orbit_generator import (
-    OrbitGenerator,
-    OrbitType,
-    OrbitInitialConditions,
-    print_orbit_summary,
-)
-from src.simulation.lagrange_points import LagrangePoint
 from src.simulation.constants import Constants, JWSTParameters
+from src.simulation.lagrange_points import LagrangePoint
+from src.simulation.orbit_generator import (OrbitGenerator,
+                                            OrbitInitialConditions, OrbitType,
+                                            print_orbit_summary)
 
 
 def test_1_jwst_nominal_orbit():

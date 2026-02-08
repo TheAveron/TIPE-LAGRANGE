@@ -1,13 +1,14 @@
 import os
 import sys
+
 import numpy as np
 
 # Make project `src` package importable when running scripts from `tools/`
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.simulation.Ephem_handler import EphemerisManager
-from src.simulation.coordinates import CoordinateTransformer
 from src.simulation.constants import Constants
+from src.simulation.coordinates import CoordinateTransformer
+from src.simulation.Ephem_handler import EphemerisManager
 
 
 def fmt(v):

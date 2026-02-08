@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Callable
+
+import numpy as np
 
 from .coordinates import PositionVector, StateVector
 
@@ -29,10 +30,12 @@ def integrate_particle_rk4(
     demi_temps = 0.5 * dt
     sixieme_temps = dt / 6.0
 
-    pos = state0[:3]
-    v = state0[3:]
+    pos = state0[:3].copy()
+    v = state0[3:].copy()
 
     state_list = np.zeros((nsteps + 1, 6))
+
+    state_list[0] = state0.copy()
 
     for n in range(nsteps):
         a1 = fun(pos, v)
@@ -50,6 +53,7 @@ def integrate_particle_rk4(
         pos += sixieme_temps * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
         v += sixieme_temps * (a1 + 2.0 * a2 + 2.0 * a3 + a4)
 
-        state_list[n + 1] = np.concatenate(pos, v)
+        state_list[n + 1, :3] = pos
+        state_list[n + 1, 3:] = v
 
     return state_list
