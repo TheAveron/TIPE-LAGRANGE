@@ -2,7 +2,7 @@ from typing import Callable
 
 import numpy as np
 
-from .coordinates import PositionVector, StateVector
+from .vectors import PositionVector, StateVector
 
 
 def integrate_particle_rk4(
@@ -33,7 +33,7 @@ def integrate_particle_rk4(
     pos = state0[:3].copy()
     v = state0[3:].copy()
 
-    state_list = np.zeros((nsteps + 1, 6))
+    state_list = np.zeros((nsteps + 1, 6), dtype=np.float64)
 
     state_list[0] = state0.copy()
 

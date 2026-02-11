@@ -21,10 +21,12 @@ from enum import Enum
 from typing import Dict, Optional
 
 import numpy as np
+import numpy.typing as npt
 
 from .constants import Constants, NumericalConstants
 from .CRTBP_model_dynamics import CRTBP3Body
 from .dynamics_conf import DynamicsConfig, DynamicsModel
+from .vectors import PositionVector
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
 
@@ -62,7 +64,7 @@ class LagrangePointInfo:
     """
 
     point: LagrangePoint
-    position: np.ndarray
+    position: PositionVector
     stability: Stability
     jacobi_constant: float
     eigenvalues: Optional[np.ndarray] = None
@@ -172,7 +174,7 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
 
         return self._create_lagrange_point_info(LagrangePoint.L1, position)
 
@@ -193,7 +195,7 @@ class LagrangePointCalculator:
         C'est là que se trouve JWST !
         """
         if initial_guess is None:
-            x0 = 1.0 + (self.mu / 3.0) ** (1.0 / 3.0)
+            x0 = (1.0 - self.mu) + (self.mu / 3.0) ** (1.0 / 3.0)
         else:
             x0 = initial_guess
 
@@ -207,7 +209,7 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
 
         return self._create_lagrange_point_info(LagrangePoint.L2, position)
 
@@ -242,12 +244,12 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
 
         return self._create_lagrange_point_info(LagrangePoint.L3, position)
 
     def _newton_raphson_collinear(
-        self, x0: float, region: str, tol: float, max_iter: int
+        self, x0: float, region: str, tol: float, max_iter: int = 500
     ) -> float:
         """
         Méthode de Newton-Raphson pour trouver un point de Lagrange colinéaire.
@@ -346,7 +348,7 @@ class LagrangePointCalculator:
             x *= self.distance_unit
             y *= self.distance_unit
 
-        position = np.array([x, y, z])
+        position = np.array([x, y, z], dtype=np.float64)
 
         return self._create_lagrange_point_info(LagrangePoint.L4, position)
 
@@ -373,7 +375,7 @@ class LagrangePointCalculator:
             x *= self.distance_unit
             y *= self.distance_unit
 
-        position = np.array([x, y, z])
+        position = np.array([x, y, z], dtype=np.float64)
 
         return self._create_lagrange_point_info(LagrangePoint.L5, position)
 
@@ -419,7 +421,7 @@ class LagrangePointCalculator:
     # ========== ANALYSE DE STABILITÉ ==========
 
     def _create_lagrange_point_info(
-        self, point: LagrangePoint, position: np.ndarray
+        self, point: LagrangePoint, position: PositionVector
     ) -> LagrangePointInfo:
         """
         Crée un objet LagrangePointInfo complet avec analyse de stabilité.
@@ -444,7 +446,7 @@ class LagrangePointCalculator:
             x2_phys = self.x2 * self.distance_unit
 
         distance_to_secondary = float(
-            np.linalg.norm(position - np.array([x2_phys, 0.0, 0.0]))
+            np.linalg.norm(position - np.array([x2_phys, 0.0, 0.0], dtype=np.float64))
         )
 
         # Stabilité
@@ -473,7 +475,7 @@ class LagrangePointCalculator:
 
     # ========== ANALYSE DE STABILITÉ AVANCÉE ==========
 
-    def _compute_jacobian_matrix(self, position: np.ndarray) -> np.ndarray:
+    def _compute_jacobian_matrix(self, position: PositionVector) -> npt.NDArray:
         """
         Calcule la matrice jacobienne du système au point donné.
 
@@ -515,7 +517,7 @@ class LagrangePointCalculator:
             Pour les points de Lagrange colinéaires (y=0, z=0), les termes
             croisés U*_xy, U*_xz, U*_yz sont nuls.
         """
-        x, y, z = position[0], position[1], position[2]
+        x, y, z = position
 
         # Normaliser si nécessaire
         if not self.normalized:
@@ -588,7 +590,7 @@ class LagrangePointCalculator:
         U_yz = -3 * c1 * y_norm * z_norm / r1_5 - 3 * c2 * y_norm * z_norm / r2_5
 
         # Construction de la matrice jacobienne 6×6
-        A = np.zeros((6, 6))  # type: ignore
+        A = np.zeros((6, 6), dtype=np.float64)
 
         # Bloc identité 3×3 en haut à droite (dérivée position = vitesse)
         A[0:3, 3:6] = np.eye(3)
@@ -610,7 +612,7 @@ class LagrangePointCalculator:
 
         return A
 
-    def _compute_eigenvalues(self, position: np.ndarray) -> np.ndarray:
+    def _compute_eigenvalues(self, position: PositionVector) -> np.ndarray:
         """
         Calcule les valeurs propres de la matrice jacobienne.
 

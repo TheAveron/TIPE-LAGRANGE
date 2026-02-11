@@ -20,10 +20,9 @@ Date: 2025-01-10
 import numpy as np
 
 from .constants import Constants
-from .coordinates import PositionVector, StateVector, distance_to_primary
+from .coordinates import distance_to_primary
 from .dynamics_conf import BaseDynamics, DynamicsConfig
-
-# ========== TYPES ET ÉNUMÉRATIONS ==========
+from .vectors import PositionVector, StateVector
 
 
 class CRTBP3Body(BaseDynamics):
@@ -124,15 +123,16 @@ class CRTBP3Body(BaseDynamics):
             U* (pseudo-potentiel)
         """
         x, y = state[0], state[1]
-
         r1, r2 = distance_to_primary(state, self.x1, self.x2)
 
+        omega = self.omega
+        GM_1, GM_2 = self.GM_1, self.GM_2
         if self.normalized:
-            U_star = (1.0 - self.mu) / r1 + self.mu / r2 + 0.5 * (x**2 + y**2)
-        else:
-            GM_1, GM_2 = self.GM_1, self.GM_2
-            U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * self.omega**2 * (x**2 + y**2)
+            GM_1 = 1.0 - self.mu
+            GM_2 = self.mu
+            omega = 1
 
+        U_star = GM_1 / r1 + GM_2 / r2 + 0.5 * omega**2 * (x**2 + y**2)
         return U_star
 
     def equations_of_motion(self, t: float, state: StateVector) -> StateVector:
@@ -232,7 +232,7 @@ class CRTBP3Body(BaseDynamics):
         ay = dU_dy - 2.0 * omega * vx
         az = dU_dz
 
-        return np.array([ax, ay, az])
+        return np.array([ax, ay, az], dtype=np.float64)
 
     def jacobi_constant(self, state: StateVector) -> float:
         """

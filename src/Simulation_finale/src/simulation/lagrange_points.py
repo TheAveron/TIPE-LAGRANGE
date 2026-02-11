@@ -24,6 +24,7 @@ import numpy as np
 from .constants import Constants, NumericalConstants
 from .CRTBP_model_dynamics import CRTBP3Body
 from .dynamics_conf import DynamicsConfig, DynamicsModel
+from .vectors import PositionVector
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
 
@@ -175,7 +176,7 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
         return self._create_lagrange_point_info(LagrangePoint.L1, position)
 
     def compute_l2(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
@@ -209,7 +210,7 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
         return self._create_lagrange_point_info(LagrangePoint.L2, position)
 
     def compute_l3(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
@@ -243,7 +244,7 @@ class LagrangePointCalculator:
         if not self.normalized:
             x *= self.distance_unit
 
-        position = np.array([x, 0.0, 0.0])
+        position = np.array([x, 0.0, 0.0], dtype=np.float64)
         return self._create_lagrange_point_info(LagrangePoint.L3, position)
 
     def _newton_raphson_collinear(
@@ -346,7 +347,7 @@ class LagrangePointCalculator:
             x *= self.distance_unit
             y *= self.distance_unit
 
-        position = np.array([x, y, z])
+        position = np.array([x, y, z], dtype=np.float64)
         return self._create_lagrange_point_info(LagrangePoint.L4, position)
 
     def compute_l5(self) -> LagrangePointInfo:
@@ -372,7 +373,7 @@ class LagrangePointCalculator:
             x *= self.distance_unit
             y *= self.distance_unit
 
-        position = np.array([x, y, z])
+        position = np.array([x, y, z], dtype=np.float64)
         return self._create_lagrange_point_info(LagrangePoint.L5, position)
 
     # ========== CALCUL GÉNÉRIQUE ==========
@@ -438,7 +439,7 @@ class LagrangePointCalculator:
     # ========== ANALYSE DE STABILITÉ ==========
 
     def _create_lagrange_point_info(
-        self, point: LagrangePoint, position: np.ndarray
+        self, point: LagrangePoint, position: PositionVector
     ) -> LagrangePointInfo:
         """
         Crée un objet LagrangePointInfo complet avec analyse de stabilité.
@@ -463,7 +464,7 @@ class LagrangePointCalculator:
             x2_phys = self.x2 * self.distance_unit
 
         distance_to_secondary = float(
-            np.linalg.norm(position - np.array([x2_phys, 0.0, 0.0]))
+            np.linalg.norm(position - np.array([x2_phys, 0.0, 0.0], dtype=np.float64))
         )
 
         # Stabilité (classification basique)

@@ -26,18 +26,20 @@ Références:
 
 """
 
-import numpy as np
-from typing import Dict, Optional, Tuple
+import warnings
 from dataclasses import dataclass
 from enum import Enum
-import warnings
+from typing import Callable, Dict, Optional, Tuple
 
+import numpy as np
+from numba import jit
+from scipy.linalg import eig
+
+from .calcul_pos_lagrange import LagrangePoint, LagrangePointCalculator
 from .constants import Constants, JWSTParameters
-from .calcul_pos_lagrange import LagrangePointCalculator, LagrangePoint
 from .CRTBP_model_dynamics import CRTBP3Body
 from .dynamics_conf import DynamicsConfig, DynamicsModel
-from .coordinates import CoordinateTransformer
-
+from .vectors import StateVector, create_state_vector
 
 # ========== TYPES ET ÉNUMÉRATIONS ==========
 
@@ -84,7 +86,7 @@ class OrbitInitialConditions:
         L_star = Constants.AU
         V_star = Constants.AU * Constants.OMEGA_EARTH
 
-        state_phys = np.zeros(6)
+        state_phys = create_state_vector()
         state_phys[:3] = self.state[:3] * L_star
         state_phys[3:6] = self.state[3:6] * V_star
 
@@ -107,7 +109,7 @@ class OrbitInitialConditions:
         L_star = Constants.AU
         V_star = Constants.AU * Constants.OMEGA_EARTH
 
-        state_norm = np.zeros(6)
+        state_norm = create_state_vector()
         state_norm[:3] = self.state[:3] / L_star
         state_norm[3:6] = self.state[3:6] / V_star
 
@@ -165,7 +167,7 @@ class OrbitGenerator:
         self.crtbp = CRTBP3Body(config, normalized=True)
 
         # Transformateur de coordonnées
-        self.coord_transformer = CoordinateTransformer()
+        self.coord_transformer = None  # CoordinateTransformer()
 
         # Calculer position L2
         self.lp_info = self.lp_calc.compute_lagrange_point(lagrange_point)
@@ -196,6 +198,7 @@ class OrbitGenerator:
         return self.generate_quasi_halo_from_manifold(
             target_amplitude_y=target_amplitudes["y"],
             target_amplitude_z=target_amplitudes["z"],
+            max_iterations=10,
         )
 
     # ========== MÉTHODE 1: VARIÉTÉS STABLES (PRINCIPALE) ==========
@@ -253,10 +256,8 @@ class OrbitGenerator:
         # Petit déplacement depuis L2 dans la direction stable
         epsilon = 1000.0 / Constants.AU  # 1000 km normalisé
 
-        # CORRECTION: Calculer position L2 dans référentiel CRTBP
-        # L2 est à x = 1 + (μ/3)^(1/3) en coordonnées normalisées
-        x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
-        position_norm = np.array([x_l2_norm, 0.0, 0.0])
+        x_l2_norm = self.lp_info.position[0]
+        position_norm = np.array([x_l2_norm, 0.0, 0.0], dtype=np.float64)
 
         initial_state = np.concatenate(
             [
@@ -304,7 +305,7 @@ class OrbitGenerator:
         target_y: float,
         target_z: float,
         backward: bool = True,
-        max_iterations: int = 50,
+        max_iterations: int = 10,
     ) -> Tuple[np.ndarray, Dict[str, float]]:
         """
         Intègre une trajectoire jusqu'à obtenir les amplitudes désirées.
@@ -341,9 +342,11 @@ class OrbitGenerator:
 
         previous_y = state[1]
 
+        function = self.crtbp.equations_of_motion
+
         while abs(t) < t_max:
             # Intégration RK4 simple
-            state = self._rk4_step(state, t, dt)
+            state = self._rk4_step(state, t, dt, function)
             t += dt
 
             # Suivre amplitudes maximales
@@ -361,6 +364,7 @@ class OrbitGenerator:
         tolerance = 0.1  # 10% de tolérance
 
         if abs(y_max - target_y_norm) / target_y_norm > tolerance:
+            print(abs(y_max - target_y_norm) / target_y_norm)
             raise RuntimeError(
                 f"Amplitude Y non atteinte: {y_max*L_star/1e6:.0f} km "
                 f"(cible: {target_y/1e6:.0f} km)"
@@ -385,8 +389,6 @@ class OrbitGenerator:
         Returns:
             Normalized direction vector (3D position space) or None if computation fails
         """
-        from scipy.linalg import eig
-
         # Get Lagrange point position
         if self.lagrange_point == LagrangePoint.L2:
             lp_pos = self.lp_info.position / Constants.AU
@@ -423,7 +425,7 @@ class OrbitGenerator:
         eigenvectors = result[1]
 
         # Find the pair of eigenvalues with negative real part (stable)
-        stable_indices = np.where(np.real(eigenvalues) < -1e-6)[0]
+        stable_indices = np.where(np.real(eigenvalues) < -1e-32)[0]
 
         if len(stable_indices) == 0:
             return None
@@ -435,7 +437,14 @@ class OrbitGenerator:
         # Return position component normalized
         return stable_eigenvector[:3] / np.linalg.norm(stable_eigenvector[:3])
 
-    def _rk4_step(self, state: np.ndarray, t: float, dt: float) -> np.ndarray:
+    @jit
+    def _rk4_step(
+        self,
+        state: StateVector,
+        t: float,
+        dt: float,
+        function: Callable[[float, StateVector], StateVector],
+    ) -> StateVector:
         """
         Un pas d'intégration Runge-Kutta 4.
 
@@ -447,10 +456,10 @@ class OrbitGenerator:
         Returns:
             Nouvel état après un pas
         """
-        k1 = self.crtbp.equations_of_motion(t, state)
-        k2 = self.crtbp.equations_of_motion(t + dt / 2, state + dt / 2 * k1)
-        k3 = self.crtbp.equations_of_motion(t + dt / 2, state + dt / 2 * k2)
-        k4 = self.crtbp.equations_of_motion(t + dt, state + dt * k3)
+        k1 = function(t, state)
+        k2 = function(t + dt / 2, state + dt / 2 * k1)
+        k3 = function(t + dt / 2, state + dt / 2 * k2)
+        k4 = function(t + dt, state + dt * k3)
 
         return state + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
@@ -480,8 +489,8 @@ class OrbitGenerator:
         """
         L_star = Constants.AU
 
-        x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
-        pos_l2_norm = np.array([x_l2_norm, 0.0, 0.0])
+        x_l2_norm = self.lp_info.position[0]
+        pos_l2_norm = np.array([x_l2_norm, 0.0, 0.0], dtype=np.float64)
 
         Ay_norm = target_amplitude_y / L_star
         Az_norm = target_amplitude_z / L_star
@@ -504,7 +513,8 @@ class OrbitGenerator:
                 0.0,  # Vx nul à l'apside
                 Ay_norm * nu,  # Vy couplé à Ay
                 0.0,  # Vz nul au pic de l'oscillation Z
-            ]
+            ],
+            dtype=np.float64,
         )
 
         C = self.crtbp.jacobi_constant(initial_state)
@@ -577,7 +587,7 @@ class OrbitGenerator:
         vy0 = -Ay * omega_y * np.sin(phase_y)
         vz0 = -Az * omega_z * np.sin(phase_z)
 
-        initial_state = np.array([x_l2, y0, z0, 0.0, vy0, vz0])
+        initial_state = np.array([x_l2, y0, z0, 0.0, vy0, vz0], dtype=np.float64)
 
         C = self.crtbp.jacobi_constant(initial_state)
 
@@ -596,7 +606,7 @@ class OrbitGenerator:
 
     # ========== UTILITAIRES ==========
 
-    def _estimate_period(self, state: np.ndarray) -> float:
+    def _estimate_period(self, state: StateVector) -> float:
         """
         Estime la période d'une orbite par intégration.
 
@@ -618,8 +628,9 @@ class OrbitGenerator:
         crossings = 0
         previous_y = current_state[1]
 
+        function = self.crtbp.equations_of_motion
         while crossings < 2 and t < 2 * T_approx:
-            current_state = self._rk4_step(current_state, t, dt)
+            current_state = self._rk4_step(current_state, t, dt, function)
             t += dt
 
             # Détecter crossing
@@ -657,17 +668,14 @@ class OrbitGenerator:
                 - period_measured: Période mesurée
                 - is_stable: True si orbite reste bornée
         """
-        # Normaliser état si nécessaire
         if orbit.is_physical:
             state_norm = orbit.to_normalized().state
         else:
             state_norm = orbit.state
 
-        # Durée normalisée
         T_star = 1.0 / Constants.OMEGA_EARTH
         duration_norm = duration / T_star
 
-        # Intégration
         dt = 0.01
         t = 0.0
         current_state = state_norm.copy()
@@ -678,14 +686,16 @@ class OrbitGenerator:
         C_initial = self.crtbp.jacobi_constant(current_state)
         C_variation = 0.0
 
+        function = self.crtbp.equations_of_motion
         while t < duration_norm:
-            current_state = self._rk4_step(current_state, t, dt)
+            current_state = self._rk4_step(current_state, t, dt, function)
             t += dt
 
             # Suivre amplitudes
             y_max = max(y_max, abs(current_state[1]))
             z_max = max(z_max, abs(current_state[2]))
-            x_l2_norm = 1.0 + (self.mu / 3.0) ** (1 / 3)
+
+            x_l2_norm = self.lp_info.position[0]
             x_max = max(x_max, abs(current_state[0] - x_l2_norm))
 
             # Suivre Jacobi
@@ -702,7 +712,7 @@ class OrbitGenerator:
                 "z": z_max * L_star,
             },
             "jacobi_variation": C_variation,
-            "is_stable": (y_max < 2.0 and z_max < 2.0),  # Bornes normalisées
+            "is_stable": (y_max < 2.0 and z_max < 2.0),
             "duration_integrated": duration,
         }
 

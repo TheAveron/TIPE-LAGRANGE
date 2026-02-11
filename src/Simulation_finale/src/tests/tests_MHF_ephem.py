@@ -134,7 +134,11 @@ def test_high_fidelity_model():
     # Vérifier que SRP pointe dans la direction anti-solaire
     sun_to_sc = pos_l2 - pos_sun
     sun_to_sc_hat = sun_to_sc / np.linalg.norm(sun_to_sc)
-    acc_srp_hat = acc_srp / acc_srp_magnitude if acc_srp_magnitude > 0 else np.zeros(3)  # type: ignore
+    acc_srp_hat = (
+        acc_srp / acc_srp_magnitude
+        if acc_srp_magnitude > 0
+        else np.zeros(3, dtype=np.float64)
+    )
 
     dot_product = np.dot(sun_to_sc_hat, acc_srp_hat)
     print(f"\nDirection SRP vs Soleil→SC: {dot_product:.6f}")
@@ -211,7 +215,8 @@ def test_high_fidelity_model():
             l2_pos_rlp[0],  # Sur l'axe X (proche de L2)
             A_y,  # Décalage en Y
             A_z,  # Décalage en Z
-        ]
+        ],
+        dtype=np.float64,
     )
 
     # Vitesse initiale : estimation pour orbite quasi-circulaire
@@ -219,7 +224,7 @@ def test_high_fidelity_model():
     v_y = 0.0  # Vitesse en Y (quasi-nulle au max de y)
     v_z = -omega * A_y  # Vitesse en Z proportionnelle à amplitude Y
 
-    vel_rlp_0 = np.array([0.0, v_y, v_z])
+    vel_rlp_0 = np.array([0.0, v_y, v_z], dtype=np.float64)
 
     state_rlp = np.concatenate([pos_rlp_0, vel_rlp_0])
 
@@ -317,7 +322,7 @@ def test_high_fidelity_model():
 
     # Convertir plusieurs points pour analyse
     n_points = 10
-    t_eval = np.linspace(t_span_comp[0], t_span_comp[1], n_points)
+    t_eval = np.linspace(t_span_comp[0], t_span_comp[1], n_points, dtype=np.float64)
 
     diff_positions = []
     diff_velocities = []
@@ -354,8 +359,8 @@ def test_high_fidelity_model():
         t_hours = (t - t_test) / 3600.0
         print(f"  {t_hours:10.2f}  {diff_pos/1e3:15.3f}  {diff_vel:15.6f}")
 
-    diff_positions = np.array(diff_positions)
-    diff_velocities = np.array(diff_velocities)
+    diff_positions = np.array(diff_positions, dtype=np.float64)
+    diff_velocities = np.array(diff_velocities, dtype=np.float64)
 
     # Statistiques
     print(f"\nStatistiques sur 2 heures:")
@@ -475,7 +480,7 @@ def test_high_fidelity_model():
         E_i = compute_energy(sol.t[i], sol.y[:, i], dynamics_no_srp)
         energies.append(E_i)
 
-    energies = np.array(energies)
+    energies = np.array(energies, dtype=np.float64)
 
     print(f"\nÉnergie initiale: {E0:.10e} m²/s²")
     print(f"Énergie finale:   {Ef:.10e} m²/s²")
@@ -558,7 +563,9 @@ def test_high_fidelity_model():
     print("-" * 70)
 
     # Test 1: Très proche du Soleil
-    state_near_sun = np.array([1e8, 0, 0, 0, 0, 0])  # 100,000 km du Soleil
+    state_near_sun = np.array(
+        [1e8, 0, 0, 0, 0, 0], dtype=np.float64
+    )  # 100,000 km du Soleil
     try:
         acc_near = dynamics.compute_acceleration(0.0, state_near_sun)
         acc_mag_near = np.linalg.norm(acc_near)
@@ -569,7 +576,7 @@ def test_high_fidelity_model():
         print(f"  ⚠ Erreur: {e}")
 
     # Test 2: Très loin du système solaire
-    state_far = np.array([1e15, 0, 0, 0, 0, 0])  # Très loin
+    state_far = np.array([1e15, 0, 0, 0, 0, 0], dtype=np.float64)  # Très loin
     try:
         acc_far = dynamics.compute_acceleration(0.0, state_far)
         acc_mag_far = np.linalg.norm(acc_far)
@@ -651,7 +658,8 @@ def test_crtbp_vs_ephemeris_comparison():
             0.0,
             10.0,  # 10 m/s en y
             5.0,  # 5 m/s en z
-        ]
+        ],
+        dtype=np.float64,
     )
 
     print("Condition initiale (RLP):")
@@ -708,13 +716,13 @@ def test_crtbp_vs_ephemeris_comparison():
         state_rlp = transformer.ecliptic_to_rlp(state_ecl, sol_hf.t[i])
         states_hf_rlp.append(state_rlp)
 
-    states_hf_rlp = np.array(states_hf_rlp).T
+    states_hf_rlp = np.array(states_hf_rlp, dtype=np.float64).T
 
     # Analyse des différences
     print("\nAnalyse des différences:\n")
 
     # Interpoler les solutions au même temps
-    t_eval = np.linspace(t_span[0], t_span[1], 100)
+    t_eval = np.linspace(t_span[0], t_span[1], 100, dtype=np.float64)
 
     # Use RLP frame for plotting to avoid misalignments.
     # CRTBP solver returns states in the rotating RLP-like frame (SI units when normalized=False).
@@ -731,7 +739,7 @@ def test_crtbp_vs_ephemeris_comparison():
         )
         states_hf_rlp_list.append(state_hf_rlp)
 
-    states_hf_interp = np.array(states_hf_rlp_list).T
+    states_hf_interp = np.array(states_hf_rlp_list, dtype=np.float64).T
 
     import matplotlib.pyplot as plt
 
@@ -741,7 +749,7 @@ def test_crtbp_vs_ephemeris_comparison():
         fig = plt.figure(figsize=(14, 6))
         ax3d = fig.add_subplot(121, projection="3d")
 
-        times_norm = np.linspace(0.0, 1.0, len(t_eval))
+        times_norm = np.linspace(0.0, 1.0, len(t_eval), dtype=np.float64)
         cmap = plt.cm.viridis  # type: ignore
 
         # --- Positions des astres au temps initial t0 (converties en RLP) ---

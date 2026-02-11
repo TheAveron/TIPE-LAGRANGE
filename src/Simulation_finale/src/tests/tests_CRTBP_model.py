@@ -29,7 +29,7 @@ def test_crtbp_model():
 
     # État initial au point L2 (approximatif)
     x_l2 = 1.0 + (crtbp_norm.mu / 3.0) ** (1.0 / 3.0)
-    state0 = np.array([x_l2, 0.0, 0.0, 0.0, 0.0, 0.0])
+    state0 = np.array([x_l2, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
 
     C0 = crtbp_norm.jacobi_constant(state0)
     print(f"  C initial = {C0:.10f}")

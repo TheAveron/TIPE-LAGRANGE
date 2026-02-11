@@ -23,14 +23,13 @@ from math import atan2, cos, pi, sin, sqrt
 from typing import Optional, Tuple
 
 import numpy as np
+import numpy.typing as npt
 
 from .constants import Constants
-
-# Type hints pour la clarté
-StateVector = np.ndarray  # Shape (6,): [x, y, z, vx, vy, vz]
-PositionVector = np.ndarray  # Shape (3,): [x, y, z]
-VelocityVector = np.ndarray  # Shape (3,): [vx, vy, vz]
-RotationMatrix = np.ndarray  # Shape (3, 3)
+from .Ephem_handler import EphemerisManager
+from .vectors import (PositionVector, StateVector, VelocityVector,
+                      create_postion_vector, create_state_vector,
+                      create_velocity_vector)
 
 
 @dataclass
@@ -99,7 +98,11 @@ class CoordinateTransformer:
     en tenant compte des approximations et de leurs impacts.
     """
 
-    def __init__(self, include_moon: bool = False, ephem_manager=None):
+    def __init__(
+        self,
+        ephem_manager: EphemerisManager = EphemerisManager(),
+        include_moon: bool = False,
+    ):
         """
         Initialise le transformateur de coordonnées.
 
@@ -167,42 +170,38 @@ class CoordinateTransformer:
                 # Fallback : orbite circulaire (approximation)
                 earth_pos, earth_vel = self._compute_earth_circular_orbit(time)
         else:
-            earth_pos = earth_position.copy()
-            earth_vel = earth_velocity.copy()
+            earth_pos: PositionVector = earth_position.copy()
+            earth_vel: VelocityVector = earth_velocity.copy()
+
+        sun_pos: PositionVector = create_postion_vector()
+        sun_vel: VelocityVector = create_velocity_vector()
 
         # 2. Position du Soleil (en coordonnées SSB si disponible)
-        if self.ephem_manager is not None:
+        if not self.ephem_manager is None:
             et = self.ephem_manager.et_from_j2000(time)
             try:
                 sun_pos, sun_vel = self.ephem_manager.get_body_state(
                     "SUN", et, "SSB", "J2000"
                 )
             except Exception:
-                sun_pos = np.zeros(3)
-                sun_vel = np.zeros(3)
-        else:
-            sun_pos = np.zeros(3)
-            sun_vel = np.zeros(3)
+                pass
 
         # 3. Vecteur Soleil → Terre
         sun_to_earth = earth_pos - sun_pos
         r_se = np.linalg.norm(sun_to_earth)
 
         # 4. Position du BARYCENTRE Soleil-Terre
-        # CRUCIAL : barycentre = Soleil + μ × (Terre - Soleil)
-        # où μ = M_Earth / (M_Sun + M_Earth) ≈ 3e-6
-        # Le barycentre est à ~450 km du Soleil (pas au centre de la Terre !)
         barycenter_pos = sun_pos + self.mu_ratio * sun_to_earth
         barycenter_vel = sun_vel + self.mu_ratio * earth_vel
 
         # 5. Construction de la matrice de rotation Écliptique → RLP
         x_axis = sun_to_earth / r_se
-        z_axis = np.array([0.0, 0.0, 1.0])
+        z_axis = np.array([0.0, 0.0, 1.0], np.float64)
         y_axis = np.cross(z_axis, x_axis)
         y_axis = y_axis / np.linalg.norm(y_axis)
         z_axis = np.cross(x_axis, y_axis)  # Réorthogonalisation
 
-        R_ecliptic_to_rlp = np.array([x_axis, y_axis, z_axis])
+        R_ecliptic_to_rlp = np.array([x_axis, y_axis, z_axis], np.float64)
 
         # 6. Transformation de POSITION
         pos_relative = state_ecliptic[:3] - barycenter_pos
@@ -221,12 +220,12 @@ class CoordinateTransformer:
         vel_rotated = R_ecliptic_to_rlp @ vel_relative
 
         # Vitesse angulaire dans RLP
-        omega_ecliptic = np.array([0.0, 0.0, self.omega])
+        omega_ecliptic = np.array([0.0, 0.0, self.omega], np.float64)
         omega_rlp = R_ecliptic_to_rlp @ omega_ecliptic
 
         # VÉRIFICATION : omega_rlp devrait Être ≈ [0, 0, ω_Earth]
         # car la rotation préserve l'axe Z
-        expected_omega = np.array([0.0, 0.0, self.omega])
+        expected_omega = np.array([0.0, 0.0, self.omega], np.float64)
         omega_error = np.linalg.norm(omega_rlp - expected_omega)
         if omega_error > 1e-6:
             import warnings
@@ -239,7 +238,7 @@ class CoordinateTransformer:
         # Vitesse dans RLP = vitesse après rotation - vitesse d'entraînement
         vel_rlp = vel_rotated - np.cross(omega_rlp, pos_rlp)
 
-        return np.concatenate([pos_rlp, vel_rlp])
+        return np.concatenate([pos_rlp, vel_rlp]).astype(np.float64)
 
     def rlp_to_ecliptic(
         self,
@@ -266,6 +265,9 @@ class CoordinateTransformer:
             earth_pos = earth_position.copy()
             earth_vel = earth_velocity.copy()
 
+        sun_pos: PositionVector = create_postion_vector()
+        sun_vel: VelocityVector = create_velocity_vector()
+
         # Obtenir la position du Soleil si possible (SSB)
         if self.ephem_manager is not None:
             et = self.ephem_manager.et_from_j2000(time)
@@ -274,11 +276,7 @@ class CoordinateTransformer:
                     "SUN", et, "SSB", "J2000"
                 )
             except Exception:
-                sun_pos = np.zeros(3)
-                sun_vel = np.zeros(3)
-        else:
-            sun_pos = np.zeros(3)
-            sun_vel = np.zeros(3)
+                pass
 
         sun_to_earth = earth_pos - sun_pos
         r_se = np.linalg.norm(sun_to_earth)
@@ -289,7 +287,7 @@ class CoordinateTransformer:
 
         # 3. Matrice de rotation RLP → Écliptique (transposée)
         x_axis = sun_to_earth / r_se
-        z_axis = np.array([0.0, 0.0, 1.0])
+        z_axis = np.array([0.0, 0.0, 1.0], dtype=np.float64)
         y_axis = np.cross(z_axis, x_axis)
         y_axis = y_axis / np.linalg.norm(y_axis)
         z_axis = np.cross(x_axis, y_axis)
@@ -300,13 +298,13 @@ class CoordinateTransformer:
         pos_ecliptic = R_rlp_to_ecliptic @ state_rlp[:3] + barycenter_pos
 
         # 5. Transformation de vitesse (inverse)
-        omega_ecliptic = np.array([0.0, 0.0, self.omega])
+        omega_ecliptic = np.array([0.0, 0.0, self.omega], dtype=np.float64)
         omega_rlp = np.array([x_axis, y_axis, z_axis]) @ omega_ecliptic
 
         vel_with_rotation = state_rlp[3:6] + np.cross(omega_rlp, state_rlp[:3])
         vel_ecliptic = R_rlp_to_ecliptic @ vel_with_rotation + barycenter_vel
 
-        return np.concatenate([pos_ecliptic, vel_ecliptic])
+        return np.concatenate([pos_ecliptic, vel_ecliptic], dtype=np.float64)  # type: ignore
 
     # ========== TRANSFORMATIONS RLP ↔ CRTBP NORMALISÉ ==========
 
@@ -334,7 +332,7 @@ class CoordinateTransformer:
         T_star = 1.0 / self.omega
         V_star = L_star / T_star
 
-        state_crtbp = np.zeros(6)
+        state_crtbp = create_state_vector()
         state_crtbp[:3] = state_rlp[:3] / L_star
         state_crtbp[3:6] = state_rlp[3:6] / V_star
 
@@ -354,7 +352,7 @@ class CoordinateTransformer:
         T_star = 1.0 / self.omega
         V_star = L_star / T_star
 
-        state_rlp = np.zeros(6)
+        state_rlp = create_state_vector()
         state_rlp[:3] = state_crtbp[:3] * L_star
         state_rlp[3:6] = state_crtbp[3:6] * V_star
 
@@ -382,10 +380,11 @@ class CoordinateTransformer:
         eps = Constants.EPSILON_EARTH
 
         R = np.array(
-            [[1.0, 0.0, 0.0], [0.0, cos(eps), sin(eps)], [0.0, -sin(eps), cos(eps)]]
+            [[1.0, 0.0, 0.0], [0.0, cos(eps), sin(eps)], [0.0, -sin(eps), cos(eps)]],
+            dtype=np.float64,
         )
 
-        state_eci = np.zeros(6)
+        state_eci = create_state_vector()
         state_eci[:3] = R @ state_ecliptic[:3]
         state_eci[3:6] = R @ state_ecliptic[3:6]
 
@@ -404,10 +403,11 @@ class CoordinateTransformer:
         eps = Constants.EPSILON_EARTH
 
         R = np.array(
-            [[1.0, 0.0, 0.0], [0.0, cos(eps), -sin(eps)], [0.0, sin(eps), cos(eps)]]
+            [[1.0, 0.0, 0.0], [0.0, cos(eps), -sin(eps)], [0.0, sin(eps), cos(eps)]],
+            dtype=np.float64,
         )
 
-        state_ecliptic = np.zeros(6)
+        state_ecliptic = create_state_vector()
         state_ecliptic[:3] = R @ state_eci[:3]
         state_ecliptic[3:6] = R @ state_eci[3:6]
 
@@ -441,12 +441,12 @@ class CoordinateTransformer:
         x = self.R * cos(M)
         y = self.R * sin(M)
         z = 0.0
-        position = np.array([x, y, z])
+        position = np.array([x, y, z], dtype=np.float64)
 
         vx = -self.R * self.omega * sin(M)
         vy = self.R * self.omega * cos(M)
         vz = 0.0
-        velocity = np.array([vx, vy, vz])
+        velocity = np.array([vx, vy, vz], dtype=np.float64)
 
         return position, velocity
 
@@ -484,12 +484,12 @@ class CoordinateTransformer:
         x_earth_in_rlp = self.R * (1.0 - self.mu_ratio)
         x_l2 = x_earth_in_rlp + d_approx
 
-        return np.array([x_l2, 0.0, 0.0])
+        return np.array([x_l2, 0.0, 0.0], dtype=np.float64)
 
     def compute_earth_position_rlp(self) -> PositionVector:
         """Position de la Terre dans le référentiel RLP."""
         x_earth = (1.0 - self.mu_ratio) * self.R
-        return np.array([x_earth, 0.0, 0.0])
+        return np.array([x_earth, 0.0, 0.0], dtype=np.float64)
 
     def compute_sun_position_rlp(self) -> PositionVector:
         """
@@ -503,7 +503,7 @@ class CoordinateTransformer:
             Distance: μ × R ≈ 450 km seulement!
         """
         x_sun = -self.mu_ratio * self.R
-        return np.array([x_sun, 0.0, 0.0])
+        return np.array([x_sun, 0.0, 0.0], dtype=np.float64)
 
     def compute_rotation_angle(self, time: float) -> float:
         """
@@ -603,7 +603,7 @@ def spherical_to_cartesian(r: float, theta: float, phi: float) -> PositionVector
     y = r * cos(phi) * sin(theta)
     z = r * sin(phi)
 
-    return np.array([x, y, z])
+    return np.array([x, y, z], dtype=np.float64)
 
 
 def compute_sun_angle(

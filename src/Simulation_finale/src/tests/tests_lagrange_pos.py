@@ -109,8 +109,8 @@ def test_lagrange_points():
     ), "L4 ne forme pas triangle équilatéral"
 
     # Angle Soleil-Terre-L4 doit être 60°
-    vec_earth_sun = np.array([sun_pos - earth_pos, 0])
-    vec_earth_l4 = np.array([x_l4 - earth_pos, y_l4])
+    vec_earth_sun = np.array([sun_pos - earth_pos, 0], dtype=np.float64)
+    vec_earth_l4 = np.array([x_l4 - earth_pos, y_l4], dtype=np.float64)
     cos_angle = np.dot(vec_earth_sun, vec_earth_l4) / (
         np.linalg.norm(vec_earth_sun) * np.linalg.norm(vec_earth_l4)
     )

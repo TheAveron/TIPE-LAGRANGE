@@ -166,8 +166,8 @@ class LagrangeVisualizer:
         """
         fig, ax = plt.subplots(figsize=figsize)
 
-        x_range = np.linspace(-1.5, 1.5, 400)
-        y_range = np.linspace(-1.5, 1.5, 400)
+        x_range = np.linspace(-1.5, 1.5, 400, dtype=np.float64)
+        y_range = np.linspace(-1.5, 1.5, 400, dtype=np.float64)
         X, Y = np.meshgrid(x_range, y_range)
 
         Omega = self.effective_potential(X, Y)
@@ -327,8 +327,8 @@ class LagrangeVisualizer:
         """
         fig, ax = plt.subplots(figsize=figsize)
 
-        x_range = np.linspace(-1.8, 1.8, 500)
-        y_range = np.linspace(-1.5, 1.5, 500)
+        x_range = np.linspace(-1.8, 1.8, 500, dtype=np.float64)
+        y_range = np.linspace(-1.5, 1.5, 500, dtype=np.float64)
         X, Y = np.meshgrid(x_range, y_range)
 
         C_grid = self.jacobi_constant_curve(X, Y)
@@ -360,7 +360,7 @@ class LagrangeVisualizer:
         cbar.set_label("Constante de Jacobi C = 2Ω", rotation=270, labelpad=20)
 
         # Courbes de niveau pour chaque C
-        colors = plt.cm.viridis(np.linspace(0, 1, len(C_values)))  # type: ignore
+        colors = plt.cm.viridis(np.linspace(0, 1, len(C_values), dtype=np.float64))  # type: ignore
 
         for i, C_val in enumerate(C_values):
             contour = ax.contour(
@@ -473,8 +473,12 @@ class LagrangeVisualizer:
         x0, y0 = pos[0], pos[1]
 
         n_points = 20
-        x_range = np.linspace(x0 - window_size, x0 + window_size, n_points)
-        y_range = np.linspace(y0 - window_size, y0 + window_size, n_points)
+        x_range = np.linspace(
+            x0 - window_size, x0 + window_size, n_points, dtype=np.float64
+        )
+        y_range = np.linspace(
+            y0 - window_size, y0 + window_size, n_points, dtype=np.float64
+        )
         X, Y = np.meshgrid(x_range, y_range)
 
         # Calcul des dérivées de Ω par différences finies
@@ -485,8 +489,8 @@ class LagrangeVisualizer:
         Omega = self.effective_potential(X, Y)
 
         # Gradient (approximation par différences centrées)
-        dOmega_dx = np.zeros_like(X)
-        dOmega_dy = np.zeros_like(Y)
+        dOmega_dx = np.zeros_like(X, dtype=np.float64)
+        dOmega_dy = np.zeros_like(Y, dtype=np.float64)
 
         # Intérieur de la grille
         dOmega_dx[:, 1:-1] = (Omega[:, 2:] - Omega[:, :-2]) / (2 * dx)
@@ -623,8 +627,8 @@ class LagrangeVisualizer:
     def _plot_system_summary(self, ax: plt.Axes, system: "LagrangeVisualizer"):  # type: ignore
         """Graphique résumé pour un système (méthode auxiliaire)."""
         # Grille
-        x_range = np.linspace(-1.5, 1.5, 300)
-        y_range = np.linspace(-1.2, 1.2, 300)
+        x_range = np.linspace(-1.5, 1.5, 300, dtype=np.float64)
+        y_range = np.linspace(-1.2, 1.2, 300, dtype=np.float64)
         X, Y = np.meshgrid(x_range, y_range)
 
         # Potentiel

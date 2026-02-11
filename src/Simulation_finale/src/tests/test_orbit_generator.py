@@ -25,7 +25,7 @@ def test_1_jwst_nominal_orbit():
     print(" TEST 1: Orbite Nominale JWST")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     orbit = gen.generate_jwst_nominal_orbit()
 
@@ -61,7 +61,7 @@ def test_2_linear_method():
     print(" TEST 2: Méthode Perturbation Linéaire")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     orbit = gen.generate_quasi_halo_linear(
         target_amplitude_y=750000e3,  # 750,000 km
@@ -89,7 +89,7 @@ def test_3_lissajous():
     print(" TEST 3: Orbite de Lissajous")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     # Lissajous avec phase π/2 (proche halo)
     orbit = gen.generate_lissajous(
@@ -112,7 +112,7 @@ def test_4_orbit_validation():
     print(" TEST 4: Validation Orbite (Intégration 180 jours)")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     # Générer orbite
     orbit = gen.generate_quasi_halo_linear(
@@ -145,7 +145,7 @@ def test_5_multiple_amplitudes():
     print(" TEST 5: Génération Multiple Amplitudes")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     # Gamme d'amplitudes
     amplitudes_y = [600000e3, 750000e3, 900000e3]  # km
@@ -184,7 +184,7 @@ def test_6_unit_conversions():
     print(" TEST 6: Conversions Normalisé ↔ Physique")
     print("=" * 70)
 
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     # Générer orbite normalisée
     orbit_norm = gen.generate_quasi_halo_linear(750000e3, 420000e3)
@@ -225,7 +225,7 @@ def example_complete_workflow():
 
     # 1. Créer générateur
     print("\n1. Création du générateur...")
-    gen = OrbitGenerator(lagrange_point=LagrangePoint.L2)
+    gen = OrbitGenerator()
 
     # 2. Générer orbite nominale JWST
     print("\n2. Génération orbite nominale JWST...")

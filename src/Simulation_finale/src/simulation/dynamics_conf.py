@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .constants import JWSTParameters
-from .coordinates import PositionVector, StateVector
+from .vectors import PositionVector, StateVector
 
 
 class DynamicsModel(Enum):

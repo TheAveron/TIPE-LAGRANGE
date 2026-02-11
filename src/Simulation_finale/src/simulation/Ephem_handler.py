@@ -15,7 +15,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import spiceypy as spice
 
-from src.simulation.coordinates import VelocityVector
+from .vectors import StateVector, VelocityVector
 
 from .constants import Constants
 
@@ -138,7 +138,7 @@ class EphemerisManager:
         time_et: float,
         observer: str = "SSB",
         reference_frame: str = "J2000",
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> StateVector:
         """
         Obtient la position et vitesse d'un corps céleste.
 
@@ -174,14 +174,12 @@ class EphemerisManager:
             # Mise en cache
             self._position_cache[cache_key] = (position, velocity)
 
-            return position, velocity
+            return np.concatenate([position, velocity])
 
         except Exception as e:
             raise RuntimeError(f"Erreur SPICE pour {body} à t={time_et}: {e}")
 
-    def get_earth_moon_barycenter(
-        self, time_et: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def get_earth_moon_barycenter(self, time_et: float) -> StateVector:
         """
         Obtient la position du barycentre Terre-Lune.
 

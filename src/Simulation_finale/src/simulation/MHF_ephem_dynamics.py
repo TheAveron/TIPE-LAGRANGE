@@ -4,10 +4,10 @@ from typing import Optional
 import numpy as np
 
 from .constants import Constants
-from .coordinates import PositionVector, StateVector
 from .CRTBP_model_dynamics import BaseDynamics
 from .dynamics_conf import DynamicsConfig
 from .Ephem_handler import EphemerisManager
+from .vectors import PositionVector, StateVector
 
 
 class HighFidelityDynamics(BaseDynamics):

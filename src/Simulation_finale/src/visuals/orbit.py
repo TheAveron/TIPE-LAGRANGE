@@ -7,6 +7,7 @@ from scipy.integrate import solve_ivp
 
 # Importing from your existing modules
 from src.simulation.constants import Constants, JWSTParameters
+from src.simulation.coordinates import StateVector, create_state_vector
 from src.simulation.orbit_generator import OrbitGenerator
 
 
@@ -15,7 +16,7 @@ class TrajectoryData:
     """Immutable container for orbital trajectory results."""
 
     time: np.ndarray
-    states: np.ndarray
+    states: StateVector
     l2_pos_m: float
 
 
@@ -36,8 +37,8 @@ class JWSTOrbitVisualizer:
 
     def get_corrected_initial_state(self):
         """Generates the state with the corrected X-offset from L2."""
-        ay = JWSTParameters.ORBIT_AMPLITUDE_Y
-        az = JWSTParameters.ORBIT_AMPLITUDE_Z
+        ay = 0 * JWSTParameters.ORBIT_AMPLITUDE_Y
+        az = -JWSTParameters.ORBIT_AMPLITUDE_Z
         ax = self._calculate_x_offset(ay)
 
         nu = 2.086
@@ -51,7 +52,8 @@ class JWSTOrbitVisualizer:
                 0.0,
                 (ay / Constants.AU) * nu * v_star,
                 0.0,
-            ]
+            ],
+            dtype=np.float64,
         )
         return state_phys
 
@@ -66,7 +68,9 @@ class JWSTOrbitVisualizer:
 
         # Use your internal RK4 step or solve_ivp for propagation
         # (Simplified integration logic for visualization purposes)
-        t_norm = np.linspace(0, (duration_days * 86400) * Constants.OMEGA_EARTH, 10000)
+        t_norm = np.linspace(
+            0, (duration_days * 86400) * Constants.OMEGA_EARTH, 10000, dtype=np.float64
+        )
 
         # This uses your Dynamics Model from CRTBP_model_dynamics.py
         # For brevity, assume 'states' is the integrated result array
@@ -79,7 +83,7 @@ class JWSTOrbitVisualizer:
         )
 
     def _integrate(
-        self, start_state_phys: np.ndarray, t_norm: np.ndarray
+        self, start_state_phys: StateVector, t_norm: np.ndarray
     ) -> np.ndarray:
         """
         Integrates the trajectory using scipy.integrate.solve_ivp.
@@ -95,7 +99,7 @@ class JWSTOrbitVisualizer:
         l_star = Constants.AU
         v_star = l_star * Constants.OMEGA_EARTH
 
-        state_norm = np.zeros(6)
+        state_norm = create_state_vector()
         state_norm[:3] = start_state_phys[:3] / l_star
         state_norm[3:6] = start_state_phys[3:6] / v_star
 
@@ -156,7 +160,7 @@ class JWSTOrbitVisualizer:
         ax = fig.add_subplot(111, projection="3d")
 
         n_points: int = len(x_rel_km)
-        colors = plt.cm.Blues(np.linspace(0.3, 1.0, n_points - 1))  # type: ignore
+        colors = plt.cm.Blues(np.linspace(0.3, 1.0, n_points - 1, dtype=np.float64))  # type: ignore
 
         for i in range(n_points - 1):
             ax.plot(
@@ -221,9 +225,7 @@ class JWSTOrbitVisualizer:
         ax.set_ylim(y_mid - max_range / 2, y_mid + max_range / 2)
         ax.set_zlim(z_mid - max_range / 2, z_mid + max_range / 2)
 
-        ax.set_xlabel(
-            r"$\Delta X$ (km)" + "\n(Sun ← L2 → Earth)", fontsize=11, labelpad=10
-        )
+        ax.set_xlabel(r"$\Delta X$ (km)" + "\n(Earth - L2)", fontsize=11, labelpad=10)
         ax.set_ylabel(r"$Y$ (km)" + "\n(Orbital component)", fontsize=11, labelpad=10)
         ax.set_zlabel(r"$Z$ (km)" + "\n(Normal to ecliptic)", fontsize=11, labelpad=10)
 
@@ -241,6 +243,7 @@ class JWSTOrbitVisualizer:
 
         ax.view_init(elev=30, azim=45)
 
+        """
         if np.min(z_km) < 0 < np.max(z_km):
             xx, yy = np.meshgrid(
                 np.linspace(x_mid - max_range / 2, x_mid + max_range / 2, 10),
@@ -255,6 +258,7 @@ class JWSTOrbitVisualizer:
                 edgecolors="gray",
                 linewidth=0.5,
             )
+        """
 
         plt.tight_layout()
         plt.show()
