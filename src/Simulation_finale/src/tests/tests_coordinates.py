@@ -1,7 +1,10 @@
 import numpy as np
 
-from src.simulation.coordinates import (FRAME_ECLIPTIC_J2000, FRAME_RLP,
-                                        CoordinateTransformer)
+from src.simulation.coordinates import (
+    FRAME_ECLIPTIC_J2000,
+    FRAME_RLP,
+    CoordinateTransformer,
+)
 
 
 def validate_transformations():
@@ -24,31 +27,6 @@ def validate_transformations():
     print(f"  Erreur aller-retour: {error:.3e} m")
     assert error < 1e-3, f"Erreur trop grande: {error}"
     print("  ✓ Test réussi\n")
-
-    # Test AVEC éphémérides
-    try:
-        from src.simulation.Ephem_handler import EphemerisManager
-
-        print("Test 2: Transformations avec éphémérides réelles")
-        ephem = EphemerisManager()
-        transformer_hf = CoordinateTransformer(include_moon=True, ephem_manager=ephem)
-
-        # Obtenir position Terre réelle
-        et = ephem.et_from_j2000(time)
-        earth_pos, earth_vel = ephem.get_body_state("EARTH", et, "SSB", "J2000")
-
-        state_rlp_hf = transformer_hf.ecliptic_to_rlp(state_ecliptic, time)
-        state_back_hf = transformer_hf.rlp_to_ecliptic(state_rlp_hf, time)
-
-        error_hf = np.linalg.norm(state_ecliptic - state_back_hf)
-        print(f"  Erreur aller-retour (HF): {error_hf:.3e} m")
-        assert error_hf < 1e-3, f"Erreur trop grande: {error_hf}"
-        print("  ✓ Test réussi\n")
-
-        ephem.unload_kernels()
-
-    except FileNotFoundError:
-        print("  (Kernels SPICE non disponibles, test HF ignoré)\n")
 
     # Test normalisation CRTBP
     print("Test 3: Normalisation CRTBP")

@@ -649,3 +649,6 @@ FodyWeavers.xsd
 # SPICE ephemeris files (large — keep out of git)
 /data/spice/
 /data/spice/*
+
+
+archives/

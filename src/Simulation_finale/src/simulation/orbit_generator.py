@@ -32,7 +32,6 @@ from enum import Enum
 from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
-from numba import jit
 from scipy.linalg import eig
 
 from .calcul_pos_lagrange import LagrangePoint, LagrangePointCalculator
@@ -125,9 +124,6 @@ class OrbitInitialConditions:
         )
 
 
-# ========== CLASSE PRINCIPALE ==========
-
-
 class OrbitGenerator:
     """
     Générateur d'orbites initiales autour des points de Lagrange.
@@ -159,20 +155,13 @@ class OrbitGenerator:
         self.mu = mu
         self.integrator = integrator
 
-        # Calculateur de points de Lagrange
-        self.lp_calc = LagrangePointCalculator(mu=mu, normalized=True)
-
-        # Modèle dynamique CRTBP
         config = DynamicsConfig(model=DynamicsModel.CRTBP)
         self.crtbp = CRTBP3Body(config, normalized=True)
 
-        # Transformateur de coordonnées
         self.coord_transformer = None  # CoordinateTransformer()
 
-        # Calculer position L2
+        self.lp_calc = LagrangePointCalculator(mu=mu, normalized=True)
         self.lp_info = self.lp_calc.compute_lagrange_point(lagrange_point)
-
-    # ========== MÉTHODE PRINCIPALE: JWST NOMINAL ==========
 
     def generate_jwst_nominal_orbit(self) -> OrbitInitialConditions:
         """
@@ -201,8 +190,6 @@ class OrbitGenerator:
             max_iterations=10,
         )
 
-    # ========== MÉTHODE 1: VARIÉTÉS STABLES (PRINCIPALE) ==========
-
     def generate_quasi_halo_from_manifold(
         self,
         target_amplitude_y: float,
@@ -230,8 +217,6 @@ class OrbitGenerator:
             Cette méthode est documentée dans Document 2 (Brown 2015).
             Elle produit des orbites très proches de la réalité JWST.
         """
-        # 1. Direction variété stable
-        # Use eigenvector from linearization (stable manifold direction)
         try:
             stable_dir = self._compute_stable_manifold_direction()
         except Exception as e:
@@ -256,15 +241,8 @@ class OrbitGenerator:
         # Petit déplacement depuis L2 dans la direction stable
         epsilon = 1000.0 / Constants.AU  # 1000 km normalisé
 
-        x_l2_norm = self.lp_info.position[0]
-        position_norm = np.array([x_l2_norm, 0.0, 0.0], dtype=np.float64)
-
-        initial_state = np.concatenate(
-            [
-                position_norm + epsilon * stable_dir,
-                np.zeros(3),  # Vitesse initiale nulle
-            ]
-        )
+        x_l2 = [self.lp_info.position[0], 0, 0, 0, 0, 0]
+        initial_state = np.concatenate([x_l2]) + epsilon * stable_dir
 
         # 3. Intégration backward pour trouver amplitudes
         # On cherche le point où on traverse le plan XZ avec vitesse appropriée
@@ -361,19 +339,19 @@ class OrbitGenerator:
             previous_y = state[1]
 
         # Vérifier si amplitudes proches de cibles
-        tolerance = 0.1  # 10% de tolérance
+        tolerance = 0.01  # 10% de tolérance
 
         if abs(y_max - target_y_norm) / target_y_norm > tolerance:
             print(abs(y_max - target_y_norm) / target_y_norm)
             raise RuntimeError(
-                f"Amplitude Y non atteinte: {y_max*L_star/1e6:.0f} km "
-                f"(cible: {target_y/1e6:.0f} km)"
+                f"Amplitude Y non atteinte: {y_max*L_star/1e3:.0f} km "
+                f"(cible: {target_y/1e3:.0f} km)"
             )
 
         amplitudes = {
             "y": y_max * L_star,
             "z": z_max * L_star,
-            "x": abs(state[0] - self.lp_info.position[0] / L_star) * L_star,
+            "x": abs(state[0] - self.lp_info.position[0]) * L_star,
         }
 
         return state, amplitudes
@@ -381,63 +359,51 @@ class OrbitGenerator:
     def _compute_stable_manifold_direction(self) -> Optional[np.ndarray]:
         """
         Computes the stable manifold direction at a Lagrange point.
-
         Uses linearization around the equilibrium point.
         The stable manifold direction is the eigenvector corresponding
-        to the eigenvalue with negative real part.
-
+        to the eigenvalue with the most negative real part.
         Returns:
-            Normalized direction vector (3D position space) or None if computation fails
+            Normalized direction vector (6D phase space) or None if computation fails
         """
-        # Get Lagrange point position
-        if self.lagrange_point == LagrangePoint.L2:
-            lp_pos = self.lp_info.position / Constants.AU
-        else:
-            # For other points, compute their positions
-            if self.lagrange_point == LagrangePoint.L1:
-                lp_pos = self.lp_calc.compute_l1().position / Constants.AU
-            else:
-                raise ValueError(f"Unsupported Lagrange point: {self.lagrange_point}")
+        if self.lagrange_point not in (LagrangePoint.L1, LagrangePoint.L2):
+            raise ValueError(f"Unsupported Lagrange point: {self.lagrange_point}")
 
-        # Compute Jacobian at the Lagrange point
-        # State = [x, y, z, vx, vy, vz]
-        state_lp = np.concatenate([lp_pos, np.zeros(3)])
+        jacobian = self.lp_info.jacobian_matrix
 
-        # Numerical differentiation to compute Jacobian
-        h = 1e-6
-        jacobian = np.zeros((6, 6))
+        # Eigendecomposition
+        eigenvalues, eigenvectors, *_ = eig(jacobian)
 
-        for i in range(6):
-            state_plus = state_lp.copy()
-            state_plus[i] += h
-
-            state_minus = state_lp.copy()
-            state_minus[i] -= h
-
-            f_plus = self.crtbp.equations_of_motion(0, state_plus)
-            f_minus = self.crtbp.equations_of_motion(0, state_minus)
-
-            jacobian[:, i] = (f_plus - f_minus) / (2 * h)
-
-        # Compute eigenvalues and eigenvectors
-        result = eig(jacobian)
-        eigenvalues = result[0]
-        eigenvectors = result[1]
-
-        # Find the pair of eigenvalues with negative real part (stable)
-        stable_indices = np.where(np.real(eigenvalues) < -1e-32)[0]
+        # Select eigenvalues with sufficiently negative real part
+        # Threshold relative to the spectral radius for numerical robustness
+        spectral_radius = np.max(np.abs(eigenvalues))
+        threshold = -1e-6 * spectral_radius
+        stable_indices = np.where(np.real(eigenvalues) < threshold)[0]
 
         if len(stable_indices) == 0:
             return None
 
-        # Take the most negative eigenvalue
+        # Take the most negative (most stable) eigenvalue
         idx = stable_indices[np.argmin(np.real(eigenvalues[stable_indices]))]
+        chosen_eigenvalue = eigenvalues[idx]
+
+        # Warn if eigenvalue has a significant imaginary part
+        # (would indicate a center-stable manifold, not a pure stable one)
+        if np.abs(np.imag(chosen_eigenvalue)) > 1e-6 * np.abs(chosen_eigenvalue):
+            warnings.warn(
+                f"Stable eigenvalue has significant imaginary part: {chosen_eigenvalue}. "
+                "The returned direction may not accurately represent the stable manifold.",
+                RuntimeWarning,
+            )
+
+        # Full phase-space eigenvector (position + velocity components)
         stable_eigenvector = np.real(eigenvectors[:, idx])
 
-        # Return position component normalized
-        return stable_eigenvector[:3] / np.linalg.norm(stable_eigenvector[:3])
+        # Normalize in full 6D phase space
+        norm = np.linalg.norm(stable_eigenvector)
+        if norm < 1e-12:
+            return None
+        return stable_eigenvector / norm
 
-    @jit
     def _rk4_step(
         self,
         state: StateVector,
@@ -645,7 +611,7 @@ class OrbitGenerator:
 
         # Convertir en unités physiques
         T_star = 1.0 / Constants.OMEGA_EARTH
-        period_physical = t * T_star / 2  # Demi-période → période
+        period_physical = t * T_star  # Demi-période → période
 
         return period_physical
 

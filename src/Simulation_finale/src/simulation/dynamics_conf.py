@@ -46,9 +46,6 @@ class DynamicsConfig:
             raise ValueError("A/M ratio doit être > 0 si SRP activé")
 
 
-# ========== CLASSE ABSTRAITE DE BASE ==========
-
-
 class BaseDynamics(ABC):
     """
     Classe abstraite définissant l'interface pour tous les modèles dynamiques.

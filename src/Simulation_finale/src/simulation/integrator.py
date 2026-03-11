@@ -5,6 +5,10 @@ import numpy as np
 from .vectors import PositionVector, StateVector
 
 
+def rk4_step():
+    pass
+
+
 def integrate_particle_rk4(
     fun: Callable[[PositionVector, PositionVector], float],
     state0: StateVector,

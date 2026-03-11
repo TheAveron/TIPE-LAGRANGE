@@ -26,8 +26,6 @@ from .CRTBP_model_dynamics import CRTBP3Body
 from .dynamics_conf import DynamicsConfig, DynamicsModel
 from .vectors import PositionVector
 
-# ========== TYPES ET ÉNUMÉRATIONS ==========
-
 
 class LagrangePoint(Enum):
     """Énumération des points de Lagrange."""
@@ -78,9 +76,6 @@ class LagrangePointInfo:
         if self.distance_to_secondary is not None:
             s += f"  Distance à la Terre: {self.distance_to_secondary/1e6:.3f} milliers km\n"
         return s
-
-
-# ========== CLASSE PRINCIPALE ==========
 
 
 class LagrangePointCalculator:
@@ -137,8 +132,6 @@ class LagrangePointCalculator:
         # Créer un objet CRTBP pour calculs auxiliaires
         config = DynamicsConfig(model=DynamicsModel.CRTBP)
         self.crtbp = CRTBP3Body(config, normalized=normalized)
-
-    # ========== CALCUL DES POINTS COLINÉAIRES (L1, L2, L3) ==========
 
     def compute_l1(self, initial_guess: Optional[float] = None) -> LagrangePointInfo:
         """

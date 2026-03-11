@@ -26,10 +26,14 @@ import numpy as np
 import numpy.typing as npt
 
 from .constants import Constants
-from .Ephem_handler import EphemerisManager
-from .vectors import (PositionVector, StateVector, VelocityVector,
-                      create_postion_vector, create_state_vector,
-                      create_velocity_vector)
+from .vectors import (
+    PositionVector,
+    StateVector,
+    VelocityVector,
+    create_postion_vector,
+    create_state_vector,
+    create_velocity_vector,
+)
 
 
 @dataclass
@@ -54,8 +58,6 @@ class ReferenceFrame:
     def __str__(self) -> str:
         return f"{self.name} (origine: {self.origin}, inertiel: {self.is_inertial})"
 
-
-# ========== DÉFINITIONS DES RÉFÉRENTIELS ==========
 
 FRAME_ECLIPTIC_J2000 = ReferenceFrame(
     name="Ecliptic J2000.0",
@@ -100,7 +102,6 @@ class CoordinateTransformer:
 
     def __init__(
         self,
-        ephem_manager: EphemerisManager = EphemerisManager(),
         include_moon: bool = False,
     ):
         """
@@ -116,7 +117,6 @@ class CoordinateTransformer:
             - DOIT être True pour haute-fidélité
         """
         self.include_moon = include_moon
-        self.ephem_manager = ephem_manager
 
         # Paramètres du système
         self.mu_ratio = Constants.MU_RATIO_SUN_EARTH
@@ -130,8 +130,6 @@ class CoordinateTransformer:
             )
         else:
             self.r_earth_to_barycenter = 0.0
-
-    # ========== TRANSFORMATIONS ÉCLIPTIQUE ↔ RLP ==========
 
     def ecliptic_to_rlp(
         self,
@@ -158,17 +156,8 @@ class CoordinateTransformer:
         Returns:
             État dans le référentiel RLP [m, m/s]
         """
-        # 1. Obtenir position/vitesse Terre
         if earth_position is None or earth_velocity is None:
-            if self.ephem_manager is not None:
-                # PRIORITÉ : utiliser les éphémérides réelles
-                et = self.ephem_manager.et_from_j2000(time)
-                earth_pos, earth_vel = self.ephem_manager.get_body_state(
-                    "EARTH", et, "SSB", "J2000"
-                )
-            else:
-                # Fallback : orbite circulaire (approximation)
-                earth_pos, earth_vel = self._compute_earth_circular_orbit(time)
+            earth_pos, earth_vel = self._compute_earth_circular_orbit(time)
         else:
             earth_pos: PositionVector = earth_position.copy()
             earth_vel: VelocityVector = earth_velocity.copy()
@@ -176,34 +165,20 @@ class CoordinateTransformer:
         sun_pos: PositionVector = create_postion_vector()
         sun_vel: VelocityVector = create_velocity_vector()
 
-        # 2. Position du Soleil (en coordonnées SSB si disponible)
-        if not self.ephem_manager is None:
-            et = self.ephem_manager.et_from_j2000(time)
-            try:
-                sun_pos, sun_vel = self.ephem_manager.get_body_state(
-                    "SUN", et, "SSB", "J2000"
-                )
-            except Exception:
-                pass
-
-        # 3. Vecteur Soleil → Terre
         sun_to_earth = earth_pos - sun_pos
         r_se = np.linalg.norm(sun_to_earth)
 
-        # 4. Position du BARYCENTRE Soleil-Terre
         barycenter_pos = sun_pos + self.mu_ratio * sun_to_earth
         barycenter_vel = sun_vel + self.mu_ratio * earth_vel
 
-        # 5. Construction de la matrice de rotation Écliptique → RLP
         x_axis = sun_to_earth / r_se
         z_axis = np.array([0.0, 0.0, 1.0], np.float64)
         y_axis = np.cross(z_axis, x_axis)
         y_axis = y_axis / np.linalg.norm(y_axis)
-        z_axis = np.cross(x_axis, y_axis)  # Réorthogonalisation
+        z_axis = np.cross(x_axis, y_axis)
 
         R_ecliptic_to_rlp = np.array([x_axis, y_axis, z_axis], np.float64)
 
-        # 6. Transformation de POSITION
         pos_relative = state_ecliptic[:3] - barycenter_pos
         pos_rlp = R_ecliptic_to_rlp @ pos_relative
 
@@ -219,7 +194,6 @@ class CoordinateTransformer:
         vel_relative = state_ecliptic[3:6] - barycenter_vel
         vel_rotated = R_ecliptic_to_rlp @ vel_relative
 
-        # Vitesse angulaire dans RLP
         omega_ecliptic = np.array([0.0, 0.0, self.omega], np.float64)
         omega_rlp = R_ecliptic_to_rlp @ omega_ecliptic
 
@@ -235,7 +209,6 @@ class CoordinateTransformer:
                 f"||ω_RLP - [0,0,ω]|| = {omega_error:.3e}"
             )
 
-        # Vitesse dans RLP = vitesse après rotation - vitesse d'entraînement
         vel_rlp = vel_rotated - np.cross(omega_rlp, pos_rlp)
 
         return np.concatenate([pos_rlp, vel_rlp]).astype(np.float64)
@@ -254,13 +227,7 @@ class CoordinateTransformer:
         """
         # 1. Position/vitesse Terre
         if earth_position is None or earth_velocity is None:
-            if self.ephem_manager is not None:
-                et = self.ephem_manager.et_from_j2000(time)
-                earth_pos, earth_vel = self.ephem_manager.get_body_state(
-                    "EARTH", et, "SSB", "J2000"
-                )
-            else:
-                earth_pos, earth_vel = self._compute_earth_circular_orbit(time)
+            earth_pos, earth_vel = self._compute_earth_circular_orbit(time)
         else:
             earth_pos = earth_position.copy()
             earth_vel = earth_velocity.copy()
@@ -268,24 +235,12 @@ class CoordinateTransformer:
         sun_pos: PositionVector = create_postion_vector()
         sun_vel: VelocityVector = create_velocity_vector()
 
-        # Obtenir la position du Soleil si possible (SSB)
-        if self.ephem_manager is not None:
-            et = self.ephem_manager.et_from_j2000(time)
-            try:
-                sun_pos, sun_vel = self.ephem_manager.get_body_state(
-                    "SUN", et, "SSB", "J2000"
-                )
-            except Exception:
-                pass
-
         sun_to_earth = earth_pos - sun_pos
         r_se = np.linalg.norm(sun_to_earth)
 
-        # 2. Barycentre
         barycenter_pos = sun_pos + self.mu_ratio * sun_to_earth
         barycenter_vel = sun_vel + self.mu_ratio * earth_vel
 
-        # 3. Matrice de rotation RLP → Écliptique (transposée)
         x_axis = sun_to_earth / r_se
         z_axis = np.array([0.0, 0.0, 1.0], dtype=np.float64)
         y_axis = np.cross(z_axis, x_axis)
@@ -294,10 +249,8 @@ class CoordinateTransformer:
 
         R_rlp_to_ecliptic = np.array([x_axis, y_axis, z_axis]).T
 
-        # 4. Transformation de position
         pos_ecliptic = R_rlp_to_ecliptic @ state_rlp[:3] + barycenter_pos
 
-        # 5. Transformation de vitesse (inverse)
         omega_ecliptic = np.array([0.0, 0.0, self.omega], dtype=np.float64)
         omega_rlp = np.array([x_axis, y_axis, z_axis]) @ omega_ecliptic
 
@@ -305,8 +258,6 @@ class CoordinateTransformer:
         vel_ecliptic = R_rlp_to_ecliptic @ vel_with_rotation + barycenter_vel
 
         return np.concatenate([pos_ecliptic, vel_ecliptic], dtype=np.float64)  # type: ignore
-
-    # ========== TRANSFORMATIONS RLP ↔ CRTBP NORMALISÉ ==========
 
     def rlp_to_crtbp(self, state_rlp: StateVector) -> StateVector:
         """
@@ -357,8 +308,6 @@ class CoordinateTransformer:
         state_rlp[3:6] = state_crtbp[3:6] * V_star
 
         return state_rlp
-
-    # ========== TRANSFORMATIONS ÉCLIPTIQUE ↔ ECI ==========
 
     def ecliptic_to_eci(self, state_ecliptic: StateVector) -> StateVector:
         """
@@ -412,8 +361,6 @@ class CoordinateTransformer:
         state_ecliptic[3:6] = R @ state_eci[3:6]
 
         return state_ecliptic
-
-    # ========== UTILITAIRES ==========
 
     def _compute_earth_circular_orbit(
         self, time: float
@@ -555,9 +502,6 @@ class CoordinateTransformer:
         return info
 
 
-# ========== FONCTIONS UTILITAIRES GLOBALES ==========
-
-
 def cartesian_to_spherical(position: PositionVector) -> Tuple[float, float, float]:
     """
     Convertit des coordonnées cartésiennes en sphériques.
@@ -647,7 +591,7 @@ def distance_to_primary(
     Returns:
         (r1, r2): Distances aux primaires 1 et 2
     """
-    x, y, z, vx, vy, _ = state
+    x, y, z = state[:3]
 
     r1 = np.sqrt((x - x1) ** 2 + y**2 + z**2)
     r2 = np.sqrt((x - x2) ** 2 + y**2 + z**2)
