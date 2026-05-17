@@ -68,7 +68,7 @@ class OrbitInitialConditions:
         is_physical: True si en unités physiques, False si normalisé
     """
 
-    state: np.ndarray
+    state: StateVector
     orbit_type: OrbitType
     period: Optional[float] = None
     amplitudes: Optional[Dict[str, float]] = None

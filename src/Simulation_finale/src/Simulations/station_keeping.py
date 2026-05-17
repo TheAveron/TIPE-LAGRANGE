@@ -36,86 +36,19 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from src.Simulations.calcul_pos_lagrange import (LagrangePoint,
-                                                 LagrangePointCalculator)
-from src.visuals.orbit import TrajectoryData
-
+from src.Models.base_controller import (
+    BaseStationKeepingController,
+    ManeuverPlan,
+    StationKeepingConstraints,
+    StationKeepingStrategy,
+)
 from ..Models.vectors import StateVector
 from .constants import Constants, JWSTParameters
 from .CRTBP3_dynamics import CRTBP3Body
 from .orbit_generator import OrbitInitialConditions
 
 
-class StationKeepingStrategy(Enum):
-    """Stratégies de station-keeping disponibles."""
-
-    TARGET_POINT = "target_point"  # Viser un point sur orbite nominale
-    FLOQUET_MODE = "floquet_mode"  # Contrôle par modes propres
-    ADAPTIVE = "adaptive"  # Adaptatif selon écart
-    JWST_OPERATIONAL = "jwst_operational"  # Stratégie opérationnelle JWST
-
-
-@dataclass
-class ManeuverPlan:
-    """
-    Plan de manœuvre de station-keeping.
-
-    Attributs:
-        time: Temps de la manœuvre [s] depuis epoch
-        delta_v: Vecteur ΔV [vx, vy, vz] [m/s]
-        magnitude: Magnitude du ΔV [m/s]
-        state_before: État avant manœuvre [m, m/s]
-        state_after: État après manœuvre [m, m/s]
-        reason: Raison de la manœuvre
-        cost_estimate: Coût estimé en propergol [kg] (optionnel)
-    """
-
-    time: float
-    delta_v: np.ndarray
-    magnitude: float
-    state_before: np.ndarray
-    state_after: np.ndarray
-    reason: str
-    cost_estimate: Optional[float] = None
-
-    def __str__(self) -> str:
-        return (
-            f"Manœuvre SK à t={self.time/86400:.1f} jours:\n"
-            f"  ΔV = [{self.delta_v[0]:.4f}, {self.delta_v[1]:.4f}, {self.delta_v[2]:.4f}] m/s\n"
-            f"  |ΔV| = {self.magnitude:.4f} m/s\n"
-            f"  Raison: {self.reason}"
-        )
-
-
-@dataclass
-class StationKeepingConstraints:
-    """
-    Contraintes pour le station-keeping.
-
-    Définit les limites acceptables de l'orbite avant correction.
-    """
-
-    # Amplitudes maximales [m]
-    max_amplitude_y: float = JWSTParameters.ORBIT_Y_MAX
-    max_amplitude_z: float = JWSTParameters.ORBIT_Z_MAX
-
-    # Distance maximale à L2 [m]
-    max_distance_to_l2: float = 2.0e9  # 2 million km
-
-    # Écart maximal en position [m]
-    max_position_error: float = 200e6  # 200,000 km
-
-    # Écart maximal en vitesse [m/s]
-    max_velocity_error: float = 10.0  # 10 m/s
-
-    # Cadence minimale entre manœuvres [jours]
-    min_maneuver_spacing: float = JWSTParameters.SK_CADENCE_DAYS
-
-    # ΔV maximal par manœuvre [m/s]
-    max_delta_v_per_maneuver: float = 2000.0
-
-
-class StationKeepingController:
+class StationKeepingController(BaseStationKeepingController):
     """
     Contrôleur de station-keeping pour orbites L2.
 
@@ -154,7 +87,7 @@ class StationKeepingController:
         self.constraints = constraints or StationKeepingConstraints()
 
         # Historique des manœuvres
-        self.maneuver_history: List[ManeuverPlan] = []
+        self.maneuver_history: list[ManeuverPlan] = []
 
         # Statistiques
         self.total_delta_v = 0.0
@@ -169,8 +102,8 @@ class StationKeepingController:
         self,
         current_state: StateVector,
         time: float,
-        last_maneuver_time: Optional[float] = None,
-    ) -> Tuple[bool, str]:
+        last_maneuver_time: float | None = None,
+    ) -> tuple[bool, str]:
         """
         Détermine si une manœuvre est nécessaire.
 
@@ -236,7 +169,7 @@ class StationKeepingController:
         self,
         current_state: StateVector,
         time: float,
-        target_state: Optional[StateVector] = None,
+        target_state: StateVector | None = None,
     ) -> ManeuverPlan:
         """
         Calcule la manœuvre ΔV optimale.
@@ -267,7 +200,7 @@ class StationKeepingController:
         self,
         current_state: StateVector,
         time: float,
-        target_state: Optional[StateVector] = None,
+        target_state: StateVector | None = None,
     ) -> ManeuverPlan:
         """
         Target Point Approach : viser un point cible sur l'orbite nominale.
@@ -365,11 +298,15 @@ class StationKeepingController:
             * L_star
         )
 
+        ref_phys = self.reference_orbit.to_physical().state
+        pos_error = current_state[:3] - ref_phys[:3]
+        vel_error = current_state[3:] - ref_phys[3:]
+
         delta_v = np.array(
             [
                 0.0,  # Pas de correction en X (contrôlé naturellement)
-                vy_correction,  # Correction principale en Y
-                vz_correction,  # Correction douce en Z
+                -vel_error[1] - Constants.OMEGA_EARTH * pos_error[1],  # correction en Y
+                -vel_error[2] * 0.5,
             ]
         )
 

@@ -1,10 +1,18 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from src.Models.base_controller import (
+    BaseStationKeepingController,
+    StationKeepingConstraints,
+)
+from src.Models.vectors import StateVector
+from src.Simulations.CRTBP3_dynamics import CRTBP3Body
+from src.Simulations.constants import Constants
+from src.Simulations.orbit_generator import OrbitInitialConditions
 from src.Simulations.station_keeping import ManeuverPlan
 
 
-class TargetPointController:
+class TargetPointController(BaseStationKeepingController):
     """
     Target Point Method : stratégie opérationnelle JWST.
 
@@ -26,9 +34,13 @@ class TargetPointController:
         si l'orbite est correctement fermée.
     """
 
-    def __init__(self, crtbp_model, reference_orbit, dt_target_days=21.0):
-        self.crtbp = crtbp_model
-        self.reference_orbit = reference_orbit
+    def __init__(
+        self, crtbp_model, reference_orbit, dt_target_days=21.0, constraints=None
+    ):
+        self.crtbp: CRTBP3Body = crtbp_model
+        self.reference_orbit: OrbitInitialConditions = reference_orbit
+        self.constraints = constraints or StationKeepingConstraints()
+
         self.dt_target = dt_target_days * 86400.0
 
         T = reference_orbit.period
@@ -69,7 +81,7 @@ class TargetPointController:
             ]
         )
 
-    def _propagate_free(self, state, t_start, dt):
+    def _propagate_free(self, state: StateVector, t_start: float, dt: float):
         """Propage l'état sans manœuvre sur dt secondes."""
         state_norm = state.copy()
         state_norm[:3] /= self.L_star
@@ -133,6 +145,73 @@ class TargetPointController:
         stm_phys = S @ stm_norm @ S_inv
 
         return stm_phys
+
+    def check_maneuver_needed(
+        self,
+        current_state: StateVector,
+        time: float,
+        last_maneuver_time: float | None = None,
+    ) -> tuple[bool, str]:
+        """
+        Détermine si une manœuvre est nécessaire.
+
+        Critères de déclenchement :
+        1. Écart de position trop grand
+        2. Écart de vitesse trop grand
+        3. Sortie des limites d'amplitude
+        4. Temps depuis dernière manœuvre
+
+        Args:
+            current_state: État actuel [x, y, z, vx, vy, vz] [m, m/s]
+            time: Temps actuel [s]
+            last_maneuver_time: Temps de la dernière manœuvre [s]
+
+        Returns:
+            (maneuver_needed, reason)
+        """
+        # Convertir en normalisé pour comparaison
+        L_star = Constants.AU
+        V_star = L_star * Constants.OMEGA_EARTH
+
+        state_norm = current_state.copy()
+        state_norm[:3] /= L_star
+        state_norm[3:] /= V_star
+
+        # Position/vitesse de référence (orbite nominale au même point)
+        # Approximation : on compare avec l'orbite de référence
+        ref_state_norm = self.reference_orbit.state
+
+        # 1. Vérifier amplitude Y
+        y_current = abs(current_state[1])
+        if y_current > self.constraints.max_amplitude_y:
+            return (
+                True,
+                f"Amplitude Y dépassée ({y_current/1e6:.0f} km > {self.constraints.max_amplitude_y/1e6:.0f} km)",
+            )
+
+        # 2. Vérifier amplitude Z
+        z_current = abs(current_state[2])
+        if z_current > self.constraints.max_amplitude_z:
+            return (
+                True,
+                f"Amplitude Z dépassée ({z_current/1e6:.0f} km > {self.constraints.max_amplitude_z/1e6:.0f} km)",
+            )
+
+        # 3. Vérifier distance à L2
+        dist_to_l2 = np.linalg.norm(
+            current_state[:3] - np.array([self.x_l2_phys, 0, 0])
+        )
+        if dist_to_l2 > self.constraints.max_distance_to_l2:
+            return True, f"Distance à L2 excessive ({dist_to_l2/1e6:.0f} km)"
+
+        # 4. Vérifier cadence minimale
+        if last_maneuver_time is not None:
+            days_since_last = (time - last_maneuver_time) / 86400
+            if days_since_last >= self.constraints.min_maneuver_spacing:
+                # Manœuvre périodique nécessaire
+                return True, f"Cadence de {days_since_last:.0f} jours atteinte"
+
+        return False, "Pas de manœuvre nécessaire"
 
     def compute_maneuver(self, current_state, time):
         """

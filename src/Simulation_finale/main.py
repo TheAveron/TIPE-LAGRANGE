@@ -4,13 +4,20 @@ import numpy as np
 
 from src import *
 from src.Models.base_dynamics import DynamicsConfig, DynamicsModel
+from src.Simulations.calcul_pos_lagrange import LagrangePoint
 from src.Simulations.constants import Constants
 from src.Simulations.CRTBP3_dynamics import CRTBP3Body
-from src.Simulations.orbit_generator import OrbitGenerator
+from src.Simulations.differential_corrector import DifferentialCorrector
+from src.Simulations.orbit_generator import (
+    OrbitGenerator,
+    OrbitInitialConditions,
+    OrbitType,
+)
 from src.Simulations.station_keeping import (
     StationKeepingStrategy,
     integrate_with_station_keeping,
 )
+from src.Simulations.target_point import TargetPointController
 from src.visuals.orbit import TrajectoryData
 
 if __name__ == "__main__":
@@ -32,38 +39,42 @@ if __name__ == "__main__":
     duration_days = 180
 
     gen = OrbitGenerator()
-    visualizer = JWSTOrbitVisualizer(gen)
-    sim_data = visualizer.run_simulation(duration_days)
-    # visualizer.plot_3D_trajectory(sim_data)
-
-    # pass
-
-    # Générer orbite nominale
-    orbit_nominal = gen.generate_jwst_nominal_orbit()
-
-    # Convertir en physique
-    orbit_phys = orbit_nominal.to_physical()
-    print(orbit_phys)
+    orbit_linear = gen.generate_jwst_nominal_orbit()
+    state_linear_norm = orbit_linear.to_normalized().state
 
     config = DynamicsConfig(model=DynamicsModel.CRTBP)
-    crtbp = CRTBP3Body(config, normalized=False)
+    crtbp = CRTBP3Body(config, normalized=True)
 
-    # Simuler 1 an avec station-keeping
+    corrector = DifferentialCorrector(crtbp, tol=1e-10)
+
+    assert orbit_linear.period
+    T_half_approx = orbit_linear.period * Constants.OMEGA_EARTH / 2  # normalisé
+
+    state_corrected_norm, period_norm = corrector.correct(
+        state_linear_norm, T_half_approx
+    )
+
+    # Reconstruire l'objet orbite corrigée
+    orbit_corrected = OrbitInitialConditions(
+        state=state_corrected_norm,
+        orbit_type=OrbitType.QUASI_HALO,
+        period=period_norm / Constants.OMEGA_EARTH,
+        amplitudes=orbit_linear.amplitudes,
+        jacobi_constant=crtbp.jacobi_constant(state_corrected_norm),
+        lagrange_point=LagrangePoint.L2,
+        generation_method="differential_corrector",
+        is_physical=False,
+    )
+
+    # 3. Simuler avec Target Point Method
+    crtbp_phys = CRTBP3Body(config, normalized=False)
+    tpm = TargetPointController(crtbp_phys, orbit_corrected.to_physical())
+
     states, maneuvers = integrate_with_station_keeping(
-        crtbp_model=crtbp,
-        initial_state=orbit_phys.state,
-        reference_orbit=orbit_nominal,
-        duration=86400 * duration_days,  # 180 jour
-        strategy=StationKeepingStrategy.JWST_OPERATIONAL,
+        crtbp_model=crtbp_phys,
+        initial_state=orbit_corrected.to_physical().state,
+        reference_orbit=orbit_corrected,
+        duration=86400 * 180,
+        strategy=StationKeepingStrategy.TARGET_POINT,
+        controller_override=tpm,  # à ajouter dans integrate_with_station_keeping
     )
-
-    t_norm = np.linspace(
-        0, (duration_days * 86400) * Constants.OMEGA_EARTH, 10000, dtype=np.float64
-    )
-    visualizer.plot_3D_trajectory(
-        TrajectoryData(t_norm, states, gen.lp_info.position[0] * Constants.AU)
-    )
-
-    # Afficher résultats
-    print(f"Nombre de manœuvres : {len(maneuvers)}")
-    print(f"ΔV total : {sum(m.magnitude for m in maneuvers):.3f} m/s")
