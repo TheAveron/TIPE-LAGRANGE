@@ -16,10 +16,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Circle
 
-from src.simulation.constants import Constants
-from src.simulation.lagrange_points import (LagrangePoint,
-                                            LagrangePointCalculator,
-                                            LagrangePointInfo)
+from src.Simulations.calcul_pos_lagrange import (LagrangePoint,
+                                                 LagrangePointCalculator,
+                                                 LagrangePointInfo)
+from src.Simulations.constants import Constants
 
 # Configuration matplotlib globale
 plt.rcParams.update(

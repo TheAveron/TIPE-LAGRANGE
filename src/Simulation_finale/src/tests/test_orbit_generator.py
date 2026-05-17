@@ -10,13 +10,15 @@ from pathlib import Path
 
 import numpy as np
 
+from src.Simulations.calcul_pos_lagrange import LagrangePoint
+from src.visuals import lagrange_points
+
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.simulation.constants import Constants, JWSTParameters
-from src.simulation.lagrange_points import LagrangePoint
-from src.simulation.orbit_generator import (OrbitGenerator,
-                                            OrbitInitialConditions, OrbitType,
-                                            print_orbit_summary)
+from src.Simulations.constants import Constants, JWSTParameters
+from src.Simulations.orbit_generator import (OrbitGenerator,
+                                             OrbitInitialConditions, OrbitType,
+                                             print_orbit_summary)
 
 
 def test_1_jwst_nominal_orbit():

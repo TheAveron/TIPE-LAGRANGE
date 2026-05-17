@@ -1,10 +1,7 @@
 import numpy as np
 
-from src.simulation.coordinates import (
-    FRAME_ECLIPTIC_J2000,
-    FRAME_RLP,
-    CoordinateTransformer,
-)
+from src.Models.reference_frames import FRAME_ECLIPTIC_J2000, FRAME_RLP
+from src.Simulations.coordinates import CoordinateTransformer
 
 
 def validate_transformations():

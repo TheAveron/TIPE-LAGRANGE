@@ -36,13 +36,14 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from src.simulation.calcul_pos_lagrange import LagrangePoint, LagrangePointCalculator
+from src.Simulations.calcul_pos_lagrange import (LagrangePoint,
+                                                 LagrangePointCalculator)
 from src.visuals.orbit import TrajectoryData
 
+from ..Models.vectors import StateVector
 from .constants import Constants, JWSTParameters
-from .CRTBP_model_dynamics import CRTBP3Body
+from .CRTBP3_dynamics import CRTBP3Body
 from .orbit_generator import OrbitInitialConditions
-from .vectors import StateVector
 
 
 class StationKeepingStrategy(Enum):
@@ -490,6 +491,7 @@ def integrate_with_station_keeping(
     dt: float = 3600.0,  # 1 heure
     strategy: StationKeepingStrategy = StationKeepingStrategy.JWST_OPERATIONAL,
     check_interval: float = 20 * 86400.0,
+    controller_override=None,
 ) -> Tuple[np.ndarray, List[ManeuverPlan]]:
     """
     Intègre une trajectoire avec station-keeping.
@@ -506,9 +508,13 @@ def integrate_with_station_keeping(
     Returns:
         (états, manœuvres) où états est array (n_steps, 6)
     """
-    controller = StationKeepingController(
-        reference_orbit=reference_orbit, crtbp_model=crtbp_model, strategy=strategy
-    )
+    if controller_override is None:
+
+        controller = StationKeepingController(
+            reference_orbit=reference_orbit, crtbp_model=crtbp_model, strategy=strategy
+        )
+    else:
+        controller = controller_override
 
     nsteps = int(duration / dt)
     states = np.zeros((nsteps + 1, 6))

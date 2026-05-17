@@ -19,10 +19,10 @@ Date: 2025-01-10
 
 import numpy as np
 
+from ..Models.base_dynamics import BaseDynamics, DynamicsConfig
+from ..Models.vectors import PositionVector, StateVector
 from .constants import Constants
 from .coordinates import distance_to_primary
-from .dynamics_conf import BaseDynamics, DynamicsConfig
-from .vectors import PositionVector, StateVector
 
 
 class CRTBP3Body(BaseDynamics):

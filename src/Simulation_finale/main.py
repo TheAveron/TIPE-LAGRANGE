@@ -1,16 +1,17 @@
 import sys
+
 import numpy as np
 
 from src import *
-from src.simulation.CRTBP_model_dynamics import CRTBP3Body
-from src.simulation.dynamics_conf import DynamicsConfig, DynamicsModel
-from src.simulation.orbit_generator import OrbitGenerator
-from src.simulation.station_keeping import (
+from src.Models.base_dynamics import DynamicsConfig, DynamicsModel
+from src.Simulations.constants import Constants
+from src.Simulations.CRTBP3_dynamics import CRTBP3Body
+from src.Simulations.orbit_generator import OrbitGenerator
+from src.Simulations.station_keeping import (
     StationKeepingStrategy,
     integrate_with_station_keeping,
 )
 from src.visuals.orbit import TrajectoryData
-from src.simulation.constants import Constants
 
 if __name__ == "__main__":
     # constant_validation()
@@ -52,7 +53,7 @@ if __name__ == "__main__":
         crtbp_model=crtbp,
         initial_state=orbit_phys.state,
         reference_orbit=orbit_nominal,
-        duration=86400 * 180,  # 180 jour
+        duration=86400 * duration_days,  # 180 jour
         strategy=StationKeepingStrategy.JWST_OPERATIONAL,
     )
 

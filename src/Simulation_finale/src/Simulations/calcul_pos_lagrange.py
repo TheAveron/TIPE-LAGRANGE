@@ -21,12 +21,12 @@ from typing import Dict, Optional
 import numpy as np
 import numpy.typing as npt
 
-from src.simulation.coordinates import distance_to_primary
+from src.Simulations.coordinates import distance_to_primary
 
+from ..Models.base_dynamics import DynamicsConfig, DynamicsModel
+from ..Models.vectors import PositionVector
 from .constants import Constants, NumericalConstants
-from .CRTBP_model_dynamics import CRTBP3Body
-from .dynamics_conf import DynamicsConfig, DynamicsModel
-from .vectors import PositionVector
+from .CRTBP3_dynamics import CRTBP3Body
 
 
 class LagrangePoint(Enum):
@@ -444,12 +444,10 @@ class LagrangePointCalculator:
         Pour Soleil-Terre: L1 est à ~1.5 million km de la Terre (côté Soleil)
         """
         if initial_guess is None:
-            # Formule approchée (Taylor au 1er ordre)
             x0 = 1.0 - (self.mu / 3.0) ** (1.0 / 3.0)
         else:
             x0 = initial_guess
 
-        # Newton-Raphson
         x = self._newton_raphson_collinear(
             x0,
             region="L1",
@@ -670,14 +668,12 @@ class LagrangePointCalculator:
             imag_part = abs(lam.imag)
 
             if abs(real_part) > tolerance:
-                # Mode avec composante réelle
                 if real_part > 0:
                     unstable_modes += 1
                 else:
                     stable_modes += 1
                 real_eigenvalues.append(lam)
             else:
-                # Mode purement imaginaire
                 neutral_modes += 1
                 imaginary_eigenvalues.append(lam)
 
@@ -690,17 +686,14 @@ class LagrangePointCalculator:
             max_real = max(abs(lam.real) for lam in real_eigenvalues)
 
             if not self.normalized:
-                # Convertir en unités physiques
                 omega = Constants.OMEGA_EARTH
                 timescale_seconds = 1.0 / (max_real * omega)
             else:
-                # En unités normalisées (période = 2π)
                 timescale_seconds = 1.0 / max_real * (2 * np.pi / Constants.OMEGA_EARTH)
 
             timescale_days = timescale_seconds / 86400.0
             mode_type = "instable (exponentiel)"
         else:
-            # Mode oscillatoire dominant
             max_imag = max(abs(lam.imag) for lam in imaginary_eigenvalues)
 
             if not self.normalized:

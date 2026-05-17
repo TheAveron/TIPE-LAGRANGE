@@ -34,13 +34,13 @@ from typing import Callable, Dict, Optional, Tuple
 import numpy as np
 from scipy.linalg import eig
 
+from src.Simulations.integrator import rk4_step
+
+from ..Models.base_dynamics import DynamicsConfig, DynamicsModel
+from ..Models.vectors import StateVector, create_state_vector
 from .calcul_pos_lagrange import LagrangePoint, LagrangePointCalculator
 from .constants import Constants, JWSTParameters
-from .CRTBP_model_dynamics import CRTBP3Body
-from .dynamics_conf import DynamicsConfig, DynamicsModel
-from .vectors import StateVector, create_state_vector
-
-# ========== TYPES ET ÉNUMÉRATIONS ==========
+from .CRTBP3_dynamics import CRTBP3Body
 
 
 class OrbitType(Enum):
@@ -260,10 +260,7 @@ class OrbitGenerator:
                 target_amplitude_y, target_amplitude_z
             )
 
-        # 4. Calculer constante de Jacobi
         C = self.crtbp.jacobi_constant(final_state)
-
-        # 5. Estimer période
         period = self._estimate_period(final_state)
 
         return OrbitInitialConditions(
@@ -301,7 +298,6 @@ class OrbitGenerator:
         Raises:
             RuntimeError: Si convergence échoue
         """
-        # Normaliser amplitudes cibles
         L_star = Constants.AU
         target_y_norm = target_y / L_star
         target_z_norm = target_z / L_star
@@ -323,23 +319,20 @@ class OrbitGenerator:
         function = self.crtbp.equations_of_motion
 
         while abs(t) < t_max:
-            # Intégration RK4 simple
-            state = self._rk4_step(state, t, dt, function)
+            state = rk4_step(state, t, dt, function)
             t += dt
 
-            # Suivre amplitudes maximales
             y_max = max(y_max, abs(state[1]))
             z_max = max(z_max, abs(state[2]))
 
             # Détecter crossing plan XZ (y=0)
-            if previous_y * state[1] < 0:  # Changement de signe
-                # On a croisé y=0
+            if previous_y * state[1] < 0:
                 break
 
             previous_y = state[1]
 
         # Vérifier si amplitudes proches de cibles
-        tolerance = 0.01  # 10% de tolérance
+        tolerance = 0.01
 
         if abs(y_max - target_y_norm) / target_y_norm > tolerance:
             print(abs(y_max - target_y_norm) / target_y_norm)
@@ -398,38 +391,10 @@ class OrbitGenerator:
         # Full phase-space eigenvector (position + velocity components)
         stable_eigenvector = np.real(eigenvectors[:, idx])
 
-        # Normalize in full 6D phase space
         norm = np.linalg.norm(stable_eigenvector)
         if norm < 1e-12:
             return None
         return stable_eigenvector / norm
-
-    def _rk4_step(
-        self,
-        state: StateVector,
-        t: float,
-        dt: float,
-        function: Callable[[float, StateVector], StateVector],
-    ) -> StateVector:
-        """
-        Un pas d'intégration Runge-Kutta 4.
-
-        Args:
-            state: État [x, y, z, vx, vy, vz] normalisé
-            t: Temps actuel
-            dt: Pas de temps
-
-        Returns:
-            Nouvel état après un pas
-        """
-        k1 = function(t, state)
-        k2 = function(t + dt / 2, state + dt / 2 * k1)
-        k3 = function(t + dt / 2, state + dt / 2 * k2)
-        k4 = function(t + dt, state + dt * k3)
-
-        return state + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
-    # ========== MÉTHODE 2: PERTURBATION LINÉAIRE (SIMPLE) ==========
 
     def generate_quasi_halo_linear(
         self, target_amplitude_y: float, target_amplitude_z: float
@@ -505,8 +470,6 @@ class OrbitGenerator:
             is_physical=False,
         )
 
-    # ========== MÉTHODE 3: LISSAJOUS ==========
-
     def generate_lissajous(
         self,
         amplitude_y: float,
@@ -533,21 +496,17 @@ class OrbitGenerator:
             Pour phase_z = phase_y + π/2, on obtient une orbite
             proche d'un halo. Pour d'autres phases, forme de Lissajous.
         """
-        # Normalisation
         L_star = Constants.AU
         V_star = L_star * Constants.OMEGA_EARTH
 
         Ay = amplitude_y / L_star
         Az = amplitude_z / L_star
 
-        # Position L2
         x_l2 = 1.0 + (self.mu / 3.0) ** (1 / 3)
 
-        # Fréquences (approximatives pour L2)
-        omega_y = 1.0  # Fréquence normalisée
+        omega_y = 1.0
         omega_z = 1.0
 
-        # État initial
         y0 = Ay * np.cos(phase_y)
         z0 = Az * np.cos(phase_z)
         vy0 = -Ay * omega_y * np.sin(phase_y)
@@ -570,8 +529,6 @@ class OrbitGenerator:
             is_physical=False,
         )
 
-    # ========== UTILITAIRES ==========
-
     def _estimate_period(self, state: StateVector) -> float:
         """
         Estime la période d'une orbite par intégration.
@@ -585,8 +542,7 @@ class OrbitGenerator:
         Note:
             Intègre jusqu'à 2ème crossing du plan XZ.
         """
-        # Intégration sur une période approximative
-        T_approx = 2 * np.pi  # Période normalisée
+        T_approx = 2 * np.pi
         dt = 0.01
 
         current_state = state.copy()
@@ -596,22 +552,19 @@ class OrbitGenerator:
 
         function = self.crtbp.equations_of_motion
         while crossings < 2 and t < 2 * T_approx:
-            current_state = self._rk4_step(current_state, t, dt, function)
+            current_state = rk4_step(current_state, t, dt, function)
             t += dt
 
-            # Détecter crossing
             if previous_y * current_state[1] < 0:
                 crossings += 1
 
             previous_y = current_state[1]
 
         if crossings < 2:
-            # Fallback: période standard JWST
             return 6 * 30 * 86400.0  # 6 mois en secondes
 
-        # Convertir en unités physiques
         T_star = 1.0 / Constants.OMEGA_EARTH
-        period_physical = t * T_star  # Demi-période → période
+        period_physical = 2 * t * T_star  # Demi-période → période
 
         return period_physical
 
@@ -654,17 +607,15 @@ class OrbitGenerator:
 
         function = self.crtbp.equations_of_motion
         while t < duration_norm:
-            current_state = self._rk4_step(current_state, t, dt, function)
+            current_state = rk4_step(current_state, t, dt, function)
             t += dt
 
-            # Suivre amplitudes
             y_max = max(y_max, abs(current_state[1]))
             z_max = max(z_max, abs(current_state[2]))
 
             x_l2_norm = self.lp_info.position[0]
             x_max = max(x_max, abs(current_state[0] - x_l2_norm))
 
-            # Suivre Jacobi
             C_current = self.crtbp.jacobi_constant(current_state)
             C_variation = max(C_variation, abs(C_current - C_initial))
 
@@ -683,9 +634,6 @@ class OrbitGenerator:
         }
 
 
-# ========== FONCTIONS UTILITAIRES ==========
-
-
 def print_orbit_summary(orbit: OrbitInitialConditions) -> None:
     """
     Affiche un résumé des conditions initiales d'une orbite.
@@ -697,7 +645,6 @@ def print_orbit_summary(orbit: OrbitInitialConditions) -> None:
     print(f" ORBITE {orbit.orbit_type.value.upper()}")
     print("=" * 70)
 
-    # Convertir en physique pour affichage
     if not orbit.is_physical:
         orbit_phys = orbit.to_physical()
     else:

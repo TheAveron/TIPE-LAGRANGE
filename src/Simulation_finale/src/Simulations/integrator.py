@@ -2,11 +2,32 @@ from typing import Callable
 
 import numpy as np
 
-from .vectors import PositionVector, StateVector
+from ..Models.vectors import PositionVector, StateVector
 
 
-def rk4_step():
-    pass
+def rk4_step(
+    state: StateVector,
+    t: float,
+    dt: float,
+    function: Callable[[float, StateVector], StateVector],
+) -> StateVector:
+    """
+    Un pas d'intégration Runge-Kutta 4.
+
+    Args:
+        state: État [x, y, z, vx, vy, vz] normalisé
+        t: Temps actuel
+        dt: Pas de temps
+
+    Returns:
+        Nouvel état après un pas
+    """
+    k1 = function(t, state)
+    k2 = function(t + dt / 2, state + dt / 2 * k1)
+    k3 = function(t + dt / 2, state + dt / 2 * k2)
+    k4 = function(t + dt, state + dt * k3)
+
+    return state + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
 def integrate_particle_rk4(

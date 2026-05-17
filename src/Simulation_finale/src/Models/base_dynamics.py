@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
-from .constants import JWSTParameters
+from ..Simulations.constants import JWSTParameters
 from .vectors import PositionVector, StateVector
 
 

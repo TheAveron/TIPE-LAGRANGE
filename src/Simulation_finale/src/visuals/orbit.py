@@ -6,9 +6,9 @@ import numpy as np
 from scipy.integrate import solve_ivp
 
 # Importing from your existing modules
-from src.simulation.constants import Constants, JWSTParameters
-from src.simulation.coordinates import StateVector, create_state_vector
-from src.simulation.orbit_generator import OrbitGenerator
+from src.Simulations.constants import Constants, JWSTParameters
+from src.Simulations.coordinates import StateVector, create_state_vector
+from src.Simulations.orbit_generator import OrbitGenerator
 
 
 @dataclass(frozen=True)
