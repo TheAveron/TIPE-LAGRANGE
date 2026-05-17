@@ -2,13 +2,12 @@
 utils.py — Style, couleurs et fonctions communes pour les graphes.
 """
 
-import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 
-# ---------------------------------------------------------------------------
 # Palette
-# ---------------------------------------------------------------------------
+
 
 COLORS = {
     "jwst": "#00BFFF",  # bleu ciel
@@ -23,9 +22,8 @@ COLORS = {
     "text": "#E0E0E0",  # "#0D0D1A",
 }
 
-# ---------------------------------------------------------------------------
+
 # Thème global
-# ---------------------------------------------------------------------------
 
 
 def set_style():
@@ -53,9 +51,7 @@ def set_style():
     )
 
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 
 def make_fig(nrows: int = 1, ncols: int = 1, **kwargs) -> tuple:

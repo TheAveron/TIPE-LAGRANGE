@@ -10,6 +10,7 @@ Le System est uniquement responsable de :
 """
 
 import numpy as np
+
 from .body import Body
 
 
@@ -28,9 +29,7 @@ class System:
         self.bodies = bodies
         self._time_history: list[float] = []
 
-    # ------------------------------------------------------------------
     # Accesseurs
-    # ------------------------------------------------------------------
 
     def __getitem__(self, name: str) -> Body:
         """Retourne un corps par son nom. Lève ValueError si absent."""
@@ -49,9 +48,7 @@ class System:
         """Corps intégrés (spacecraft…)."""
         return [b for b in self.bodies if not b.fixed]
 
-    # ------------------------------------------------------------------
     # Historique temporel
-    # ------------------------------------------------------------------
 
     def record_time(self, t: float):
         self._time_history.append(t)
@@ -65,9 +62,7 @@ class System:
     def time_history(self) -> np.ndarray:
         return np.array(self._time_history)
 
-    # ------------------------------------------------------------------
     # Diagnostics rapides (extrema pour débogage)
-    # ------------------------------------------------------------------
 
     def print_summary(self, label: str = ""):
         """Affiche quelques valeurs extremum après intégration."""
@@ -86,8 +81,6 @@ class System:
                 f"{np.linalg.norm(pos, axis=1).max():.4e}"
             )
             print(f"    |v| min/max : {speeds.min():.4e} / {speeds.max():.4e}")
-
-    # ------------------------------------------------------------------
 
     def __repr__(self):
         names = [b.name for b in self.bodies]

@@ -6,28 +6,18 @@ Lance les deux simulations (CR3BP et inertielle) et affiche les graphes.
 
 from cr3bp import CR3BPSimulation
 from inertial import InertialSimulation
-from visualization import (
-    plot_cr3bp_trajectory,
-    plot_inertial_trajectory,
-    plot_jacobi,
-    plot_energy,
-    plot_energy_comparison,
-    plot_cr3bp_velocity,
-    plot_inertial_velocity,
-    plot_velocity_comparison,
-)
+from visualization import (plot_cr3bp_trajectory, plot_cr3bp_velocity,
+                           plot_energy, plot_energy_comparison,
+                           plot_inertial_trajectory, plot_inertial_velocity,
+                           plot_jacobi, plot_velocity_comparison)
 
-# ---------------------------------------------------------------------------
 # Paramètres communs
-# ---------------------------------------------------------------------------
 
 AZ_ADIM = 0.00279  # amplitude hors-plan JWST ≈ 418 000 km
-N_REVOLUTIONS = 4.0  # nombre de révolutions halo à simuler
+N_REVOLUTIONS = 10.0  # nombre de révolutions halo à simuler
 N_STEPS = 5000  # pas RK4 par révolution (augmenter pour plus de précision)
 
-# ---------------------------------------------------------------------------
 # 1. Simulation CR3BP
-# ---------------------------------------------------------------------------
 
 print("=" * 60)
 print("  MODULE 1 — CR3BP (repère tournant non-dimensionnalisé)")
@@ -42,9 +32,7 @@ sim_cr3bp = CR3BPSimulation(
 )
 sim_cr3bp.run()
 
-# ---------------------------------------------------------------------------
 # 2. Simulation inertielle J2000
-# ---------------------------------------------------------------------------
 
 print("\n" + "=" * 60)
 print("  MODULE 2 — Inertiel (référentiel J2000)")
@@ -60,9 +48,7 @@ sim_inertial = InertialSimulation(
 )
 sim_inertial.run()
 
-# ---------------------------------------------------------------------------
 # 3. Visualisations
-# ---------------------------------------------------------------------------
 
 print("\nAffichage des graphes...")
 

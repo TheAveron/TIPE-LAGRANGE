@@ -20,11 +20,10 @@ Amplitudes cibles JWST (articles AAS) :
 
 import numpy as np
 from scipy.optimize import brentq
+
 from .equations import MU_SUN_EARTH
 
-# ---------------------------------------------------------------------------
 # 1. Points de Lagrange colinéaires (L1, L2, L3)
-# ---------------------------------------------------------------------------
 
 
 def _gamma_L2(mu: float) -> float:
@@ -55,9 +54,7 @@ def lagrange_L2(mu: float = MU_SUN_EARTH) -> np.ndarray:
     return np.array([x_L2, 0.0, 0.0])
 
 
-# ---------------------------------------------------------------------------
 # 2. Approximation de Richardson (3ème ordre) pour orbite halo autour de L2
-# ---------------------------------------------------------------------------
 
 
 def richardson_halo_L2(
@@ -94,9 +91,8 @@ def richardson_halo_L2(
 
     c2, c3, c4 = c[2], c[3], c[4]
 
-    # ------------------------------------------------------------------
     # Fréquences et coefficients (Richardson 1980, Table 1)
-    # ------------------------------------------------------------------
+
     # Fréquence dans le plan  λ  (valeur propre de la partie in-plane)
     lam = _lambda_in_plane(c2)
 
@@ -165,10 +161,9 @@ def richardson_halo_L2(
     # Demi-période
     T_half = np.pi / nu
 
-    # ------------------------------------------------------------------
     # Coordonnées dans le repère centré sur L2 (repère de Richardson)
     # puis recentrage sur le barycentre
-    # ------------------------------------------------------------------
+
     tau = phi  # phase initiale
 
     x_L2 = lagrange_L2(mu)[0]
@@ -228,9 +223,7 @@ def richardson_halo_L2(
     return np.array([x, y, z, vx, vy, vz]), T_half
 
 
-# ---------------------------------------------------------------------------
 # Fonctions auxiliaires internes
-# ---------------------------------------------------------------------------
 
 
 def _cn_coefficients(gamma: float, mu: float, n_max: int = 5) -> dict[int, float]:

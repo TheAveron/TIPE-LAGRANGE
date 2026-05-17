@@ -6,10 +6,11 @@ en enregistrant position, vitesse, temps et constante de Jacobi.
 """
 
 import numpy as np
-from core.integrator import integrate
 from core.body import Body
-from .equations import eom_factory, jacobi_constant, MU_SUN_EARTH
-from .lagrange import richardson_halo_L2, lagrange_L2
+from core.integrator import integrate
+
+from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
+from .lagrange import lagrange_L2, richardson_halo_L2
 
 # Facteur de conversion unité de temps adim → secondes
 # t* = sqrt(l*³ / (G m*))  avec l* = 1 UA, G m* ≈ G(M_sun + M_earth) ≈ G M_sun
@@ -108,9 +109,7 @@ class CR3BPSimulation:
         ]
         return "\n".join(lines)
 
-    # ------------------------------------------------------------------
     # Accesseurs pratiques
-    # ------------------------------------------------------------------
 
     @property
     def positions(self) -> np.ndarray:

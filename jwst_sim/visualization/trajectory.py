@@ -4,14 +4,14 @@ trajectory.py — Graphes de trajectoires 2D et 3D.
 Fournit des fonctions pour les deux modules (CR3BP et inertiel).
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (enregistrement projection 3d)
-from .utils import set_style, COLORS, add_colorbar_time
+import numpy as np
+from mpl_toolkits.mplot3d import \
+    Axes3D  # noqa: F401  (enregistrement projection 3d)
 
-# ---------------------------------------------------------------------------
+from .utils import COLORS, add_colorbar_time, set_style
+
 # CR3BP
-# ---------------------------------------------------------------------------
 
 
 def plot_cr3bp_trajectory(sim, save_path: str | None = None):
@@ -86,9 +86,7 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
     plt.show()
 
 
-# ---------------------------------------------------------------------------
 # Inertiel
-# ---------------------------------------------------------------------------
 
 
 def plot_inertial_trajectory(sim, save_path: str | None = None):

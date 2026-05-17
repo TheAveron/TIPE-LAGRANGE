@@ -1,2 +1,2 @@
-from .forces import gravitational_acceleration, mechanical_energy, G
-from .simulation import InertialSimulation, L_STAR, M_SUN, M_EARTH_MOON
+from .forces import G, gravitational_acceleration, mechanical_energy
+from .simulation import L_STAR, M_EARTH_MOON, M_SUN, InertialSimulation

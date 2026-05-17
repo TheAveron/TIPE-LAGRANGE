@@ -2,9 +2,10 @@
 velocity.py — Graphes de vitesse du JWST.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from .utils import set_style, COLORS, annotate_extrema
+import numpy as np
+
+from .utils import COLORS, annotate_extrema, set_style
 
 
 def plot_cr3bp_velocity(sim, save_path: str | None = None):

@@ -44,9 +44,7 @@ class Body:
         self._pos_history: list[np.ndarray] = []
         self._vel_history: list[np.ndarray] = []
 
-    # ------------------------------------------------------------------
     # État courant
-    # ------------------------------------------------------------------
 
     @property
     def state(self) -> np.ndarray:
@@ -58,9 +56,7 @@ class Body:
         self.position = s[:3].copy()
         self.velocity = s[3:].copy()
 
-    # ------------------------------------------------------------------
     # Gestion de l'historique
-    # ------------------------------------------------------------------
 
     def record(self):
         """Enregistre l'état courant dans l'historique."""
@@ -80,8 +76,6 @@ class Body:
     def vel_history(self) -> np.ndarray:
         """shape (N, 3)"""
         return np.array(self._vel_history)
-
-    # ------------------------------------------------------------------
 
     def __repr__(self):
         return f"Body('{self.name}', mass={self.mass:.3e}, fixed={self.fixed})"

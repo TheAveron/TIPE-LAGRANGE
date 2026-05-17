@@ -5,9 +5,10 @@ energy.py — Graphes d'énergie / constante de Jacobi.
 - Inertiel  : énergie mécanique spécifique E(t), dérive relative ΔE/E₀
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from .utils import set_style, COLORS, annotate_extrema, relative_drift
+import numpy as np
+
+from .utils import COLORS, annotate_extrema, relative_drift, set_style
 
 
 def plot_jacobi(sim, save_path: str | None = None):

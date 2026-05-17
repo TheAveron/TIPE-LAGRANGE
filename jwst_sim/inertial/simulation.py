@@ -18,11 +18,11 @@ Unités : SI (m, kg, s).
 import numpy as np
 from core.body import Body
 from core.integrator import integrate
-from .forces import gravitational_acceleration, mechanical_energy, G
 
-# ---------------------------------------------------------------------------
+from .forces import G, gravitational_acceleration, mechanical_energy
+
 # Constantes physiques SI
-# ---------------------------------------------------------------------------
+
 
 L_STAR: float = 1.495_978_707e11  # 1 UA [m]
 M_SUN: float = 1.989e30  # [kg]
@@ -82,9 +82,7 @@ class InertialSimulation:
         self.states: np.ndarray | None = None
         self.energy: np.ndarray | None = None
 
-    # ------------------------------------------------------------------
     # Conversion CR3BP adim. → inertiel SI  (à t=0)
-    # ------------------------------------------------------------------
 
     def _cr3bp_to_inertial(self, state_cr3bp: np.ndarray) -> np.ndarray:
         """
@@ -125,9 +123,7 @@ class InertialSimulation:
 
         return np.array([pos_si[0], pos_si[1], pos_si[2], vx_si, vy_si, vz_si])
 
-    # ------------------------------------------------------------------
     # Équations de mouvement N-corps (référentiel inertiel)
-    # ------------------------------------------------------------------
 
     def _eom(self, t: float, state: np.ndarray) -> np.ndarray:
         """
@@ -147,9 +143,7 @@ class InertialSimulation:
 
         return np.concatenate([vel, acc])
 
-    # ------------------------------------------------------------------
     # Lancement
-    # ------------------------------------------------------------------
 
     def run(self):
         t_end = self.n_revolutions * self.T_halo_s
@@ -192,9 +186,7 @@ class InertialSimulation:
         ]
         return "\n".join(lines)
 
-    # ------------------------------------------------------------------
     # Accesseurs
-    # ------------------------------------------------------------------
 
     @property
     def positions(self) -> np.ndarray:

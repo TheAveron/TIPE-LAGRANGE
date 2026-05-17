@@ -7,8 +7,9 @@ Choix RK4 :
   - Suffisant pour ~3-4 révolutions quasi-halo (~2 ans) avec h ~ 1 h.
 """
 
-import numpy as np
 from typing import Callable
+
+import numpy as np
 
 
 def rk4_step(
