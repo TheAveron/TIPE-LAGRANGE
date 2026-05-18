@@ -102,7 +102,7 @@ class InertialSimulation:
         # On recentre : l'origine inertielle est le Soleil (approximation,
         # car M_sun >> M_earth le barycentre ≈ centre du Soleil)
         # Décalage du barycentre CR3BP par rapport au Soleil : x_bary = μ * L_STAR
-        x_offset = mu * L_STAR  # ~450 km, négligeable mais inclus pour cohérence
+        x_offset = -mu * L_STAR  # ~450 km, négligeable mais inclus pour cohérence
 
         pos_si = np.array(
             [

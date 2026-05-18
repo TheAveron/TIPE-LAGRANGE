@@ -4,10 +4,11 @@ trajectory.py — Graphes de trajectoires 2D et 3D.
 Fournit des fonctions pour les deux modules (CR3BP et inertiel).
 """
 
+from pickle import FALSE
+
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import \
-    Axes3D  # noqa: F401  (enregistrement projection 3d)
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (enregistrement projection 3d)
 
 from .utils import COLORS, add_colorbar_time, set_style
 
@@ -62,6 +63,7 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
 
     # --- XZ ---
     ax_xz = fig.add_subplot(2, 2, 3)
+    ax_xz.axis("equal")
     ax_xz.scatter(dpos[:, 0], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5)
     ax_xz.scatter(0, 0, color=COLORS["L2"], s=60, zorder=5)
     ax_xz.set_xlabel("ΔX [km]")
@@ -72,6 +74,7 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
 
     # --- YZ ---
     ax_yz = fig.add_subplot(2, 2, 4)
+    ax_yz.axis("equal")
     ax_yz.scatter(dpos[:, 1], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5)
     ax_yz.scatter(0, 0, color=COLORS["L2"], s=60, zorder=5)
     ax_yz.set_xlabel("ΔY [km]")
@@ -178,6 +181,7 @@ def plot_inertial_trajectory(sim, save_path: str | None = None):
 
     # --- XZ ---
     ax_xz = fig.add_subplot(2, 2, 4)
+    ax_xz.axis("equal")
     ax_xz.scatter(pos_jwst[:, 0], pos_jwst[:, 2], c=t_norm, cmap="plasma", s=0.5)
     ax_xz.set_xlabel("X [UA]")
     ax_xz.set_ylabel("Z [UA]")

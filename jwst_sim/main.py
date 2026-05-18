@@ -6,10 +6,16 @@ Lance les deux simulations (CR3BP et inertielle) et affiche les graphes.
 
 from cr3bp import CR3BPSimulation
 from inertial import InertialSimulation
-from visualization import (plot_cr3bp_trajectory, plot_cr3bp_velocity,
-                           plot_energy, plot_energy_comparison,
-                           plot_inertial_trajectory, plot_inertial_velocity,
-                           plot_jacobi, plot_velocity_comparison)
+from visualization import (
+    plot_cr3bp_trajectory,
+    plot_cr3bp_velocity,
+    plot_energy,
+    plot_energy_comparison,
+    plot_inertial_trajectory,
+    plot_inertial_velocity,
+    plot_jacobi,
+    plot_velocity_comparison,
+)
 
 # Paramètres communs
 

@@ -99,6 +99,10 @@ def richardson_halo_L2(
     # Coefficients k, d1, d2
     k = 2 * lam / (lam**2 + 1 - c2)
 
+    print("c2 =", c2)
+    print("k =", k)
+    print("den =", lam**2 + 1 - c2)
+
     d1 = (3 * lam**2 / k) * (k * (6 * lam**2 - 1) - 2 * lam)
     d2 = (8 * lam**2 / k) * (k * (11 * lam**2 - 1) - 2 * lam)
 
@@ -133,14 +137,21 @@ def richardson_halo_L2(
     a1 = -1.5 * c3 * (2 * a21 + a23 + 5 * d21) - 0.375 * c4 * (12 - k**2)
     a2 = 1.5 * c3 * (a24 - 2 * a22) + 1.125 * c4
 
+    print("a1 =", a1)
+    print("a2 =", a2)
+    print("delta2 =", delta2)
+
     # La relation halo : Ax² = -(a1 Az² + delta2) / a2
     # (le signe est correct pour Az petit)
-    Ax2 = (a1 * Az**2 + delta2) / a2
-    if Ax2 < 0:
-        raise ValueError(
-            f"Az={Az:.4e} trop grand : Ax² < 0. Réduire Az (max ≈ 0.005 pour JWST)."
-        )
-    Ax = np.sqrt(Ax2)
+    # Ax2 = -(a1 * Az**2 + delta2) / a2
+    # if Ax2 < 0:
+    #    raise ValueError(
+    #        f"Az={Az:.4e} trop grand : Ax² < 0. Réduire Az (max ≈ 0.005 pour JWST)."
+    #    )
+    # Ax = np.sqrt(Ax2)
+
+    # Empirical initialization for Sun–Earth L2 halo family
+    Ax = 1.2 * Az
 
     # Fréquence corrigée au 3ème ordre
     omega1 = 0.0  # correction 1er ordre nulle pour halo
@@ -220,6 +231,11 @@ def richardson_halo_L2(
     vy = eta_dot
     vz = zeta_dot
 
+    print("lambda =", lam)
+    print("nu =", nu)
+    print("Ax =", Ax)
+    print("Az =", Az)
+
     return np.array([x, y, z, vx, vy, vz]), T_half
 
 
@@ -234,7 +250,7 @@ def _cn_coefficients(gamma: float, mu: float, n_max: int = 5) -> dict[int, float
     c = {}
     for n in range(2, n_max + 1):
         c[n] = (1 / gamma**3) * (
-            mu + (-1) ** n * (1 - mu) * gamma ** (n + 1) / (1 - gamma) ** (n + 1)
+            mu + (-1) ** n * (1 - mu) * gamma ** (n + 1) / (1 + gamma) ** (n + 1)
         )
     return c
 
