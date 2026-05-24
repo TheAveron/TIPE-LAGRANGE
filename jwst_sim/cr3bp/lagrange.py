@@ -19,6 +19,7 @@ Amplitudes cibles JWST (articles AAS) :
 """
 
 import numpy as np
+import math
 from scipy.optimize import brentq
 
 from .equations import MU_SUN_EARTH
@@ -37,7 +38,7 @@ def _gamma_L2(mu: float) -> float:
     #   γ ≈ (μ/3)^(1/3) comme point de départ, puis résolution numérique.
     def eq(g):
         return (
-            g**5 - (3 - mu) * g**4 + (3 - 2 * mu) * g**3 - mu * g**2 + 2 * mu * g - mu
+            g**5 + (3 - mu) * g**4 + (3 - 2 * mu) * g**3 - mu * g**2 - 2 * mu * g - mu
         )
 
     g0 = (mu / 3) ** (1 / 3)
@@ -97,77 +98,82 @@ def richardson_halo_L2(
     lam = _lambda_in_plane(c2)
 
     # Coefficients k, d1, d2
-    k = 2 * lam / (lam**2 + 1 - c2)
+    k = (1 + 2 * c2 + lam**2) / (2 * lam)
 
-    print("c2 =", c2)
-    print("k =", k)
-    print("den =", lam**2 + 1 - c2)
-
-    d1 = (3 * lam**2 / k) * (k * (6 * lam**2 - 1) - 2 * lam)
-    d2 = (8 * lam**2 / k) * (k * (11 * lam**2 - 1) - 2 * lam)
+    d1 = 3 * (lam**2) * (k * (6 * (lam**2) - 1) - 2 * lam) / k
+    d2 = 8 * (lam**2) * (k * (11 * (lam**2) - 1) - 2 * lam) / k
 
     # Amplitude Ax en fonction de Az (relation de bifurcation halo)
     # a21..a24, b21..b22 de Richardson
     a21 = (3 * c3 * (k**2 - 2)) / (4 * (1 + 2 * c2))
     a22 = (3 * c3) / (4 * (1 + 2 * c2))
-    a23 = (-3 * c3 * lam / (4 * k * d1)) * (3 * k**3 * lam - 6 * k * (k - lam) + 4)
-    a24 = (-3 * c3 * lam / (4 * k * d1)) * (2 + 3 * k * lam)
-    b21 = (-3 * c3 * lam / (2 * d1)) * (3 * k * lam - 4)
+    a23 = -3 * c3 * lam * (3 * lam * (k**3) - 6 * k * (k - lam) + 4) / (4 * k * d1)
+    a24 = -3 * c3 * lam * (2 + 3 * k * lam) / (4 * k * d1)
+
+    b21 = -3 * c3 * lam * (3 * k * lam - 4) / (2 * d1)
     b22 = 3 * c3 * lam / d1
 
     d21 = -c3 / (2 * lam**2)
 
-    a31 = (-9 * lam / (4 * d2)) * (4 * c3 * (k * a23 - b21) + k * c4 * (4 + k**2))
-    a32 = (-1 / (4 * d2)) * (
-        9 * lam * (4 * c3 * (k * a24 - b22) + k * c4)
-        + 3 * c3**2 * (2 - k**2)
-        + 4 * c4 * (k**2 + 2)
+    a31 = -9 * lam * (4 * c3 * (k * a23 - b21) + k * c4 * (4 + k**2)) / (4 * d2) + (
+        9 * lam**2 + 1 - c2
+    ) * (3 * c3 * (2 * a23 - k * b21) + c4 * (2 + 3 * k**2)) / (2 * d2)
+    a32 = -(
+        (
+            9 * lam * (4 * c3 * (k * a24 - b22) + k * c4) / 4
+            + 3 * (9 * lam**2 + 1 - c2) * (c3 * (k * b22 + d21 - 2 * a24) - c4) / 2
+        )
+        / d2
     )
-    b31 = (3 / (8 * d2)) * (
-        8 * lam * (3 * c3 * (k * b21 - lam * a23) - c4 * (2 + 3 * k**2))
-        + (9 * lam**2 + 1 + 2 * c2) * (4 * c3 * (k * a23 - b21) + k * c4 * (4 + k**2))
+
+    b31 = (
+        3
+        * (
+            8 * lam * (3 * c3 * (k * b21 - 2 * a23) - c4 * (2 + 3 * k**2))
+            + (1 + 2 * c2 + 9 * lam**2)
+            * (4 * c3 * (k * a23 - b21) + k * c4 * (4 + k**2))
+        )
+        / (8 * d2)
     )
-    b32 = (1 / d2) * (
-        9 * lam * (c3 * (k * b22 + lam * a24) - c4)
+    b32 = (
+        9 * lam * (3 * c3 * (k * b22 + d21 - 2 * a24) - c4)
         + (3 / 8) * (9 * lam**2 + 1 + 2 * c2) * (4 * c3 * (k * a24 - b22) + k * c4)
-    )
+    ) / d2
 
-    # Amplitude in-plane Ax² = -delta2 / delta1  avec delta = f(Az²)
-    delta2 = 2 * lam * (lam * (1 + k**2) - 2 * k)
-    a1 = -1.5 * c3 * (2 * a21 + a23 + 5 * d21) - 0.375 * c4 * (12 - k**2)
-    a2 = 1.5 * c3 * (a24 - 2 * a22) + 1.125 * c4
+    d31 = (3 / (64 * lam**2)) * (4 * c3 * a24 + c4)
+    d32 = (3 / (64 * lam**2)) * (4 * c3 * a23 - d21 + c4 * (1 + k**2 + 3))  # k**2 + 4
 
-    print("a1 =", a1)
-    print("a2 =", a2)
-    print("delta2 =", delta2)
+    # ----
 
-    # La relation halo : Ax² = -(a1 Az² + delta2) / a2
-    # (le signe est correct pour Az petit)
-    # Ax2 = -(a1 * Az**2 + delta2) / a2
-    # if Ax2 < 0:
-    #    raise ValueError(
-    #        f"Az={Az:.4e} trop grand : Ax² < 0. Réduire Az (max ≈ 0.005 pour JWST)."
-    #    )
-    # Ax = np.sqrt(Ax2)
+    temp_denom = 2 * lam * (lam * (1 + k**2) - 2 * k)
+    s1 = (
+        1.5 * c3 * (2 * a21 * (k**2 - 2) - a23 * (k**2 + 2) - 2 * k * b21)
+        - 3 / 8 * (3 * k**4 - 8 * k**2 + 8)
+    ) / temp_denom
+    s2 = (
+        1.5 * c3 * (2 * a22 * (k**2 - 2) - a24 * (k**2 + 2) + 2 * k * b22 + 5 * d21)
+        + 3 / 8 * c4 * (12 - k**2)
+    ) / temp_denom
+
+    a1 = -1.5 * c3 * (2 * a21 + a23 + 5 * d21) - 3 * c4 * (12 - k**2) / 8
+
+    a2 = 1.5 * (a24 - 2 * a22) + 9 / 8 * c4
+
+    l1 = a1 + 2 * lam**2 * s1
+    l2 = a2 + 2 * lam**2 * s2
 
     # Empirical initialization for Sun–Earth L2 halo family
-    Ax = 1.2 * Az
 
     # Fréquence corrigée au 3ème ordre
     omega1 = 0.0  # correction 1er ordre nulle pour halo
-    omega2 = (
-        (
-            (-3 / 2) * c3 * (2 * a21 + a23 + 5 * d21)
-            - (3 / 8) * c4 * (12 - k**2)
-            + a1 * Ax**2
-            + (a2 * Az**2) / Ax**2 * 0  # terme croisé nul ici
-        )
-        if Ax > 0
-        else 0.0
-    )
+
+    Ax = math.sqrt(
+        -l2 / l1 * Az**2
+    )  # = Az * sqrt(-l2/l1)#math.sqrt((-delta - l2 * Az**2) / l1)
+    omega2 = s1 * Ax**2 + s2 * Az**2
 
     # Fréquence totale ν = λ + ε²ω₂  (ε ~ Az, approximation)
-    nu = lam + omega2 * Az**2
+    nu = lam + omega2
 
     # Demi-période
     T_half = np.pi / nu
@@ -175,7 +181,7 @@ def richardson_halo_L2(
     # Coordonnées dans le repère centré sur L2 (repère de Richardson)
     # puis recentrage sur le barycentre
 
-    tau = phi  # phase initiale
+    tau = tau = phi  # phi  # phase initiale
 
     x_L2 = lagrange_L2(mu)[0]
 
@@ -197,7 +203,7 @@ def richardson_halo_L2(
     zeta = m * (
         Az * np.cos(tau)
         + d21 * Ax * Az * (np.cos(2 * tau) - 3)
-        + (a32 * Ax**2 * Az - a31 * Az**3) * np.cos(3 * tau)
+        + (d32 * Ax**2 * Az - d31 * Az**3) * np.cos(3 * tau)
     )
 
     # Vitesses (dérivées par rapport à τ = ν·t, donc dτ/dt = ν)
@@ -219,7 +225,7 @@ def richardson_halo_L2(
         * (
             -Az * np.sin(tau)
             - 2 * d21 * Ax * Az * np.sin(2 * tau)
-            - 3 * (a32 * Ax**2 * Az - a31 * Az**3) * np.sin(3 * tau)
+            - 3 * (d32 * Ax**2 * Az - d31 * Az**3) * np.sin(3 * tau)
         )
     )
 
@@ -231,8 +237,6 @@ def richardson_halo_L2(
     vy = eta_dot
     vz = zeta_dot
 
-    print("lambda =", lam)
-    print("nu =", nu)
     print("Ax =", Ax)
     print("Az =", Az)
 
@@ -245,12 +249,13 @@ def richardson_halo_L2(
 def _cn_coefficients(gamma: float, mu: float, n_max: int = 5) -> dict[int, float]:
     """
     Coefficients c_n du développement du potentiel autour de L2.
-    c_n = (1/γ³) [ μ + (-1)^n (1-μ) γ^(n+1) / (1-γ)^(n+1) ]
+    c_n = ((-1)^n / γ³) [ μ + (1-μ) γ^(n+1) / (1+γ)^(n+1) ]
     """
     c = {}
     for n in range(2, n_max + 1):
-        c[n] = (1 / gamma**3) * (
-            mu + (-1) ** n * (1 - mu) * gamma ** (n + 1) / (1 + gamma) ** (n + 1)
+        # Le (-1)**n s'applique à l'ensemble de la parenthèse pour L2 !
+        c[n] = ((-1) ** n / gamma**3) * (
+            mu + (1 - mu) * (gamma / (1 + gamma)) ** (n + 1)
         )
     return c
 

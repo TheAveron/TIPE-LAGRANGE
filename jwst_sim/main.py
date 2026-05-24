@@ -24,9 +24,9 @@ from visualization import (
 )
 
 # Paramètres communs
-Az = 240e3
-AZ_ADIM = 0.001604  # amplitude hors-plan JWST ≈ 418 000 km
-N_REVOLUTIONS = 4.0  # nombre de révolutions halo à simuler
+
+AZ_ADIM = 0.00240  # 0.00279  # amplitude hors-plan JWST ≈ 418 000 km
+N_REVOLUTIONS = 6.0  # nombre de révolutions halo à simuler
 N_STEPS = 10000  # pas RK4 par révolution (augmenter pour plus de précision)
 
 # 1. Simulation CR3BP

@@ -224,6 +224,10 @@ class StationKeepingSimulation:
         self._t_stm = t_stm
         self._stm_arr = ys_stm[:, 6:].reshape(-1, 6, 6, order="F")
 
+        # NOUVEAU : On utilise cette seule période comme référence de base
+        # self._t_ref = t_stm
+        # self._s_ref = ys_stm[:, :6]
+
         # 3. Monodromie et vecteurs propres à t=0
         self.M = self._stm_arr[-1]
         assert self.M is not None
@@ -243,7 +247,7 @@ class StationKeepingSimulation:
             s0_p = state0 + self._perturbation
         else:
             pert = np.zeros(6)
-            pert[0] = 0 / 1.496e11  # +100 km radial
+            pert[0] = 100e3 / 1.496e11  # +100 km radial
             s0_p = state0 + pert
 
         # 6. Intégration avec corrections EVSK
@@ -267,7 +271,10 @@ class StationKeepingSimulation:
 
     def _ref_state(self, t: float) -> np.ndarray:
         """Interpolation de la référence à l'instant t."""
-        idx = np.clip(np.searchsorted(self._t_ref, t), 1, len(self._t_ref) - 1)
+        assert self.T_halo
+        t_mod = t % self.T_halo
+
+        idx = np.clip(np.searchsorted(self._t_ref, t_mod), 1, len(self._t_ref) - 1)
         t0, t1 = self._t_ref[idx - 1], self._t_ref[idx]
         s0, s1 = self._s_ref[idx - 1], self._s_ref[idx]
         if t1 == t0:
