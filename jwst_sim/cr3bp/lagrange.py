@@ -27,21 +27,23 @@ from .equations import MU_SUN_EARTH
 # 1. Points de Lagrange colinéaires (L1, L2, L3)
 
 
+from scipy.optimize import brentq
+
+
 def _gamma_L2(mu: float) -> float:
     """
-    Distance adim. entre la Terre et L2, notée γ₂.
-    Solution positive de l'équation quintic de Hill.
+    Dimensionless distance between the secondary body and L2
+    in the circular restricted three-body problem.
     """
+    assert 0.0 < mu < 0.5
 
-    # Équation : γ⁵ - (3-μ)γ⁴ + (3-2μ)γ³ - μγ² + 2μγ - μ = 0  (approx)
-    # On utilise la forme classique de la série de Lagrange tronquée :
-    #   γ ≈ (μ/3)^(1/3) comme point de départ, puis résolution numérique.
     def eq(g):
         return (
             g**5 + (3 - mu) * g**4 + (3 - 2 * mu) * g**3 - mu * g**2 - 2 * mu * g - mu
         )
 
     g0 = (mu / 3) ** (1 / 3)
+
     return float(brentq(eq, g0 * 0.5, g0 * 1.5))  # type: ignore
 
 
@@ -56,14 +58,12 @@ def lagrange_L2(mu: float = MU_SUN_EARTH) -> np.ndarray:
 
 
 # 2. Approximation de Richardson (3ème ordre) pour orbite halo autour de L2
-
-
 def richardson_halo_L2(
     Az: float,
     mu: float = MU_SUN_EARTH,
     northern: bool = True,
     phi: float = 0.0,
-) -> tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float, float]:
     """
     État initial d'une orbite halo autour de L2, approximation de Richardson.
 
@@ -94,8 +94,8 @@ def richardson_halo_L2(
 
     # Fréquences et coefficients (Richardson 1980, Table 1)
 
-    # Fréquence dans le plan  λ  (valeur propre de la partie in-plane)
-    lam = _lambda_in_plane(c2)
+    # Fréquences (valeur propre de la partie in-plane)
+    lam, omega_p, omega_v = _eigenvalues(c2)
 
     # Coefficients k, d1, d2
     k = (1 + 2 * c2 + lam**2) / (2 * lam)
@@ -167,21 +167,18 @@ def richardson_halo_L2(
     # Fréquence corrigée au 3ème ordre
     omega1 = 0.0  # correction 1er ordre nulle pour halo
 
-    Ax = math.sqrt(
-        -l2 / l1 * Az**2
-    )  # = Az * sqrt(-l2/l1)#math.sqrt((-delta - l2 * Az**2) / l1)
-    omega2 = s1 * Ax**2 + s2 * Az**2
-
-    # Fréquence totale ν = λ + ε²ω₂  (ε ~ Az, approximation)
-    nu = lam + omega2
+    delta = omega_p**2 - omega_v**2
+    Ax = math.sqrt((delta + Az**2 * l2) / l1)
+    nu = s1 * Ax**2 + s2 * Az**2
 
     # Demi-période
-    T_half = np.pi / nu
+    T_half = np.pi * nu / omega_p
 
     # Coordonnées dans le repère centré sur L2 (repère de Richardson)
     # puis recentrage sur le barycentre
+    tau = 0
 
-    tau = tau = phi  # phi  # phase initiale
+    tau1 = omega_p * tau + phi
 
     x_L2 = lagrange_L2(mu)[0]
 
@@ -189,43 +186,52 @@ def richardson_halo_L2(
     xi = (
         a21 * Ax**2
         + a22 * Az**2
-        - Ax * np.cos(tau)
-        + (a23 * Ax**2 - a24 * Az**2) * np.cos(2 * tau)
-        + (a31 * Ax**3 - a32 * Ax * Az**2) * np.cos(3 * tau)
+        - Ax * np.cos(tau1)
+        + (a23 * Ax**2 - a24 * Az**2) * np.cos(2 * tau1)
+        + (a31 * Ax**3 - a32 * Ax * Az**2) * np.cos(3 * tau1)
     )
 
     eta = (
-        k * Ax * np.sin(tau)
-        + (b21 * Ax**2 - b22 * Az**2) * np.sin(2 * tau)
-        + (b31 * Ax**3 - b32 * Ax * Az**2) * np.sin(3 * tau)
+        k * Ax * np.sin(tau1)
+        + (b21 * Ax**2 - b22 * Az**2) * np.sin(2 * tau1)
+        + (b31 * Ax**3 - b32 * Ax * Az**2) * np.sin(3 * tau1)
     )
 
     zeta = m * (
-        Az * np.cos(tau)
-        + d21 * Ax * Az * (np.cos(2 * tau) - 3)
-        + (d32 * Ax**2 * Az - d31 * Az**3) * np.cos(3 * tau)
+        Az * np.cos(tau1)
+        + d21 * Ax * Az * (np.cos(2 * tau1) - 3)
+        + (d32 * Ax**2 * Az - d31 * Az**3) * np.cos(3 * tau1)
     )
 
     # Vitesses (dérivées par rapport à τ = ν·t, donc dτ/dt = ν)
-    xi_dot = nu * (
-        Ax * np.sin(tau)
-        - 2 * (a23 * Ax**2 - a24 * Az**2) * np.sin(2 * tau)
-        - 3 * (a31 * Ax**3 - a32 * Ax * Az**2) * np.sin(3 * tau)
+    xi_dot = (
+        omega_p
+        * nu
+        * (
+            +Ax * np.sin(tau1)
+            - 2 * (a23 * Ax**2 - a24 * Az**2) * np.sin(2 * tau1)
+            - 3 * (a31 * Ax**3 - a32 * Ax * Az**2) * np.sin(3 * tau1)
+        )
     )
 
-    eta_dot = nu * (
-        k * Ax * np.cos(tau)
-        + 2 * (b21 * Ax**2 - b22 * Az**2) * np.cos(2 * tau)
-        + 3 * (b31 * Ax**3 - b32 * Ax * Az**2) * np.cos(3 * tau)
+    eta_dot = (
+        omega_p
+        * nu
+        * (
+            k * Ax * np.cos(tau1)
+            + 2 * (b21 * Ax**2 - b22 * Az**2) * np.cos(2 * tau1)
+            + 3 * (b31 * Ax**3 - b32 * Ax * Az**2) * np.cos(3 * tau1)
+        )
     )
 
     zeta_dot = (
         nu
+        * omega_p
         * m
         * (
-            -Az * np.sin(tau)
-            - 2 * d21 * Ax * Az * np.sin(2 * tau)
-            - 3 * (d32 * Ax**2 * Az - d31 * Az**3) * np.sin(3 * tau)
+            -Az * np.sin(tau1)
+            - 2 * d21 * Ax * Az * np.sin(2 * tau1)
+            - 3 * (d32 * Ax**2 * Az - d31 * Az**3) * np.sin(3 * tau1)
         )
     )
 
@@ -237,10 +243,7 @@ def richardson_halo_L2(
     vy = eta_dot
     vz = zeta_dot
 
-    print("Ax =", Ax)
-    print("Az =", Az)
-
-    return np.array([x, y, z, vx, vy, vz]), T_half
+    return np.array([x, y, z, vx, vy, vz]), T_half, c2
 
 
 # Fonctions auxiliaires internes
@@ -253,18 +256,18 @@ def _cn_coefficients(gamma: float, mu: float, n_max: int = 5) -> dict[int, float
     """
     c = {}
     for n in range(2, n_max + 1):
-        # Le (-1)**n s'applique à l'ensemble de la parenthèse pour L2 !
-        c[n] = ((-1) ** n / gamma**3) * (
-            mu + (1 - mu) * (gamma / (1 + gamma)) ** (n + 1)
+        c[n] = (mu + (1 - mu) * (gamma ** (n + 1)) / ((1 - gamma) ** (n + 1))) / (
+            gamma ** (n + 1)
         )
     return c
 
 
-def _lambda_in_plane(c2: float) -> float:
+def _eigenvalues(c2: float) -> tuple[float, float, float]:
     """
     Valeur propre réelle positive de la partie in-plane (fréquence λ).
     λ² = (c2 - 2 + sqrt(9c2² - 8c2)) / 2
     """
     disc = 9 * c2**2 - 8 * c2
     lam2 = (c2 - 2 + np.sqrt(disc)) / 2
-    return np.sqrt(lam2)
+    omega_p2 = (c2 - 2 - np.sqrt(disc)) / 2
+    return np.sqrt(lam2), np.sqrt(-omega_p2), np.sqrt(c2)

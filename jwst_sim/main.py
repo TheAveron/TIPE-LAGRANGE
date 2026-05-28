@@ -64,7 +64,6 @@ print("=" * 60)
 assert sim_cr3bp.state0 is not None and sim_cr3bp.T_halo
 assert sim_stationkeeping.state0_ref is not None and sim_stationkeeping.T_halo
 
-
 sim_inertial = InertialSimulation(
     state0_cr3bp=sim_stationkeeping.state0_ref,
     n_revolutions=N_REVOLUTIONS,
