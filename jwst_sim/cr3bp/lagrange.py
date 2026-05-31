@@ -149,7 +149,7 @@ def richardson_halo_L2(
     temp_denom = 2 * lam * (lam * (1 + k**2) - 2 * k)
     s1 = (
         3 * c3 * (2 * a21 * (k**2 - 2) - a23 * (k**2 + 2) - 2 * k * b21) / 2
-        - 3 * (3 * k**4 - 8 * k**2 + 8) / 8
+        - 3 * c4 * (3 * k**4 - 8 * k**2 + 8) / 8
     ) / temp_denom
     s2 = (
         3 * c3 * (2 * a22 * (k**2 - 2) - a24 * (k**2 + 2) + 2 * k * b22 + 5 * d21) / 2
@@ -158,7 +158,7 @@ def richardson_halo_L2(
 
     a1 = -3 * c3 * (2 * a21 + a23 + 5 * d21) / 2 - 3 * c4 * (12 - k**2) / 8
 
-    a2 = 3 * (a24 - 2 * a22) / 2 + 9 * c4 / 8
+    a2 = 3 * c3 * (a24 - 2 * a22) / 2 + 9 * c4 / 8
 
     l1 = a1 + 2 * lam**2 * s1
     l2 = a2 + 2 * lam**2 * s2
@@ -170,7 +170,7 @@ def richardson_halo_L2(
 
     delta = omega_p**2 - omega_v**2
 
-    Ax = np.sqrt((delta + Az**2 * l2) / l1, dtype=np.float64)
+    Ax = np.sqrt(-(delta + Az**2 * l2) / l1, dtype=np.float64)
 
     nu = 1 + s1 * Ax**2 + s2 * Az**2
 

@@ -120,7 +120,7 @@ def evsk_delta_v(
     -------
     dv : (3,)  impulsion en vitesse [adim.]
     """
-    e_v = v_s[3:].copy()
+    e_v = v_u_left[3:].copy()
     norm_ev = np.float64(np.linalg.norm(e_v))
     if norm_ev < 1e-14:
         return np.zeros(3, dtype=np.float64)
@@ -285,8 +285,11 @@ class StationKeepingSimulation:
 
     def _ref_state(self, t: np.float64) -> NDArray[np.float64]:
         """Interpolation de la référence à l'instant t."""
+        assert self.T_halo is not None
+        t_mod = t  # / self.T_halo
+
         idx = np.clip(
-            np.searchsorted(self._t_ref, t),
+            np.searchsorted(self._t_ref, t_mod),
             1,
             len(self._t_ref) - 1,
             dtype=np.int64,
@@ -303,10 +306,16 @@ class StationKeepingSimulation:
         On utilise t mod T_halo car la STM est périodique (approximativement).
         """
 
-        assert self._t_stm is not None and self._stm_arr is not None
+        assert (
+            self._t_stm is not None
+            and self._stm_arr is not None
+            and self.T_halo is not None
+        )
+
+        t_mod = t  # / self.T_halo
 
         idx = np.clip(
-            np.searchsorted(self._t_stm, t),
+            np.searchsorted(self._t_stm, t_mod),
             1,
             len(self._t_stm) - 1,
             dtype=np.int64,
@@ -315,7 +324,7 @@ class StationKeepingSimulation:
         P0, P1 = self._stm_arr[idx - 1], self._stm_arr[idx]
         if t1 == t0:
             return P0
-        alpha = (t - t0) / (t1 - t0)
+        alpha = (t_mod - t0) / (t1 - t0)
         return P0 + alpha * (P1 - P0)
 
     def _integrate_with_sk(

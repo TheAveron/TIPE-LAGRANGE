@@ -7,7 +7,8 @@ Fournit des fonctions pour les deux modules (CR3BP et inertiel).
 import matplotlib.pyplot as plt
 from cr3bp.simulation import CR3BPSimulation
 from inertial.simulation import InertialSimulation
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (enregistrement projection 3d)
+from mpl_toolkits.mplot3d import \
+    Axes3D  # noqa: F401  (enregistrement projection 3d)
 
 from .utils import COLORS, add_colorbar_time, set_style
 

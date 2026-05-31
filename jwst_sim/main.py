@@ -8,24 +8,16 @@ import numpy as np
 from cr3bp import CR3BPSimulation
 from cr3bp.stationkeeping import StationKeepingSimulation
 from inertial import InertialSimulation
-from visualization import (
-    plot_cr3bp_trajectory,
-    plot_cr3bp_velocity,
-    plot_delta_v_history,
-    plot_energy,
-    plot_energy_comparison,
-    plot_inertial_trajectory,
-    plot_inertial_velocity,
-    plot_jacobi,
-    plot_sk_jacobi,
-    plot_sk_trajectory,
-    plot_velocity_comparison,
-)
+from visualization import (plot_cr3bp_trajectory, plot_cr3bp_velocity,
+                           plot_delta_v_history, plot_energy,
+                           plot_energy_comparison, plot_inertial_trajectory,
+                           plot_inertial_velocity, plot_jacobi, plot_sk_jacobi,
+                           plot_sk_trajectory, plot_velocity_comparison)
 
 # Paramètres communs
 
 AZ_ADIM = np.float64(0.00240)  # 0.00279  # amplitude hors-plan JWST ≈ 418 000 km
-N_REVOLUTIONS = np.int16(3)  # nombre de révolutions halo à simuler
+N_REVOLUTIONS = np.int16(10)  # nombre de révolutions halo à simuler
 N_STEPS = np.int16(10000)  # pas RK4 par révolution (augmenter pour plus de précision)
 
 # 1. Simulation CR3BP
@@ -76,20 +68,55 @@ print("\nAffichage des graphes...")
 
 
 # Station keeping
-plot_sk_trajectory(sim_stationkeeping)
-plot_sk_jacobi(sim_stationkeeping)
-plot_delta_v_history(sim_stationkeeping)
+plot_sk_trajectory(
+    sim_stationkeeping,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/sk_trajectory",
+)
+plot_sk_jacobi(
+    sim_stationkeeping,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/sk_jacobi",
+)
+plot_delta_v_history(
+    sim_stationkeeping,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/dv_history",
+)
 
 # Trajectoires
-plot_cr3bp_trajectory(sim_cr3bp)
-plot_inertial_trajectory(sim_inertial)
+plot_cr3bp_trajectory(
+    sim_cr3bp,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/cr3bp_trajectory",
+)
+plot_inertial_trajectory(
+    sim_inertial,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/inertial_trajectory",
+)
 
 # Énergie / Jacobi
-plot_jacobi(sim_cr3bp)
-plot_energy(sim_inertial)
-plot_energy_comparison(sim_cr3bp, sim_inertial)
+plot_jacobi(
+    sim_cr3bp,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/cr3bp_jacobi",
+)
+plot_energy(
+    sim_inertial,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/intertial",
+)
+plot_energy_comparison(
+    sim_cr3bp,
+    sim_inertial,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/energy_comparaison",
+)
 
 # Vitesses
-plot_cr3bp_velocity(sim_cr3bp)
-plot_inertial_velocity(sim_inertial)
-plot_velocity_comparison(sim_cr3bp, sim_inertial)
+plot_cr3bp_velocity(
+    sim_cr3bp,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/cr3bp_velocity",
+)
+plot_inertial_velocity(
+    sim_inertial,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/intertial_velocity",
+)
+plot_velocity_comparison(
+    sim_cr3bp,
+    sim_inertial,
+    "/home/averon/Documents/Travail/TIPE-LAGRANGE/plots/NoSK_functionnal_Halo/velocity_comparaison",
+)

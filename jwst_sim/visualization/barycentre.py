@@ -36,24 +36,26 @@ print(
 )
 
 # ── Figure ──
-fig, ax = plt.subplots(figsize=(12, 4), facecolor="#0D0D1A")
-ax.set_facecolor("#0D0D1A")
+fig, ax = plt.subplots(
+    figsize=(12, 4),
+)  # facecolor="#0D0D1A")
+# ax.set_facecolor("#0D0D1A")
 
 # Axe horizontal (ligne de base)
 ax.axhline(0, color="#2A2A3E", lw=0.8, zorder=0)
 
 # Soleil
 ax.scatter(
-    x_sun, 0, s=1200, color="#FFD700", zorder=5, edgecolors="#FFF4A0", linewidths=1.5
+    x_sun, 0, s=1200, color="#C28400", zorder=5, edgecolors="#C28400", linewidths=1.5
 )
 ax.annotate(
     f"Soleil\nx = −μ = {x_sun:.2e}",
     xy=(x_sun, 0),
     xytext=(x_sun - 0.1, 0.018),
-    color="#FFD700",
+    color="#C28400",
     fontsize=9,
     fontfamily="monospace",
-    arrowprops=dict(arrowstyle="->", color="#FFD700", lw=0.8),
+    arrowprops=dict(arrowstyle="->", color="#C28400", lw=0.8),
 )
 
 # Terre
@@ -71,15 +73,15 @@ ax.annotate(
 )
 
 # Barycentre
-ax.scatter(x_bary, 0, s=60, color="#FF6B6B", marker="+", linewidths=2.0, zorder=6)
+ax.scatter(x_bary, 0, s=60, color="#EE3B3B", marker="+", linewidths=2.0, zorder=6)
 ax.annotate(
     f"Barycentre\nx = 0  (origine)",
     xy=(x_bary, 0),
     xytext=(0.08, 0.018),
-    color="#FF6B6B",
+    color="#EE3B3B",
     fontsize=9,
     fontfamily="monospace",
-    arrowprops=dict(arrowstyle="->", color="#FF6B6B", lw=0.8),
+    arrowprops=dict(arrowstyle="->", color="#EE3B3B", lw=0.8),
 )
 
 # Cote μ : distance Soleil → barycentre
@@ -87,13 +89,13 @@ ax.annotate(
     "",
     xy=(0, -0.03),
     xytext=(x_sun, -0.03),
-    arrowprops=dict(arrowstyle="<->", color="#FFD700", lw=1.0),
+    arrowprops=dict(arrowstyle="<->", color="#C28400", lw=1.0),
 )
 ax.text(
     (x_sun + 0) / 2,
     -0.038,
     f"μ = {MU:.2e}",
-    color="#FFD700",
+    color="#C28400",
     ha="center",
     fontsize=8,
     fontfamily="monospace",
@@ -121,13 +123,13 @@ ax.annotate(
     "",
     xy=(x_earth, 0.035),
     xytext=(x_sun, 0.035),
-    arrowprops=dict(arrowstyle="<->", color="#E0E0E0", lw=0.8),
+    arrowprops=dict(arrowstyle="<->", color="#000000", lw=0.8),
 )
 ax.text(
     (x_sun + x_earth) / 2,
     0.042,
     "1 UA (unité adim.)",
-    color="#E0E0E0",
+    color="#000000",
     ha="center",
     fontsize=8,
     fontfamily="monospace",
@@ -135,14 +137,14 @@ ax.text(
 
 ax.set_xlim(-0.15, 1.15)
 ax.set_ylim(-0.07, 0.07)
-ax.set_xlabel("x  [adim., 1 = 1 UA]", color="#E0E0E0", fontfamily="monospace")
+ax.set_xlabel("x  [adim., 1 = 1 UA]", color="#000000", fontfamily="monospace")
 ax.set_yticks([])
-ax.tick_params(colors="#E0E0E0")
+ax.tick_params(colors="#000000")
 ax.set_title(
     f"Repère tournant CR3BP — Soleil, Terre, Barycentre\n"
     f"Le barycentre est à {d_sun_bary:.0f} 000 km du centre du Soleil "
     f"(≈ {d_sun_bary / 6.957e5:.5f} R☉)",
-    color="#E0E0E0",
+    color="#000000",
     fontfamily="monospace",
     fontsize=10,
 )
