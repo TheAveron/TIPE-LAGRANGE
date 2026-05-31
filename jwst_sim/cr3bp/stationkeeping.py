@@ -20,20 +20,19 @@ Algorithme EVSK (Petersen AAS 19-806) :
    ê_v = composantes vitesse de v_s_local, normalisées.
 """
 
-import numpy as np
 from dataclasses import dataclass
-from core.integrator import rk4_step, integrate
-from .equations import eom_factory, jacobi_constant, MU_SUN_EARTH
-from .stm import (
-    compute_monodromy,
-    stable_unstable_eigvecs,
-    print_monodromy_summary,
-    eom_stm_factory,
-)
-from .lagrange import richardson_halo_L2
 
-T_STAR_SEC: float = 365.25 * 86400 / (2 * np.pi)
-V_STAR_MS: float = 1.496e11 / T_STAR_SEC
+import numpy as np
+from core.integrator import integrate, rk4_step
+from numpy.typing import NDArray
+
+from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
+from .lagrange import richardson_halo_L2
+from .stm import (compute_monodromy, eom_stm_factory, print_monodromy_summary,
+                  stable_unstable_eigvecs)
+
+T_STAR_SEC = np.float64(365.25 * 86400 / (2 * np.pi))
+V_STAR_MS = np.float64(1.496e11 / T_STAR_SEC)
 
 
 # Structure d'une manœuvre
@@ -41,38 +40,46 @@ V_STAR_MS: float = 1.496e11 / T_STAR_SEC
 
 @dataclass
 class Maneuver:
-    t_adim: float
-    t_days: float
-    delta_v: np.ndarray
-    dv_norm: float
-    dv_norm_ms: float
-    state_before: np.ndarray
-    state_after: np.ndarray
-    error_before: np.ndarray
+    t_adim: np.float64
+    t_days: np.float64
+    delta_v: NDArray
+    dv_norm: np.float64
+    dv_norm_ms: np.float64
+    state_before: NDArray
+    state_after: NDArray
+    error_before: NDArray
 
 
 # ΔV EVSK avec vecteurs propres locaux (propagés par STM)
 
 
 def _local_eigvecs(
-    Phi_k: np.ndarray,  # STM Φ(t_k, 0), shape (6,6)
-    v_s0: np.ndarray,  # vecteur propre stable à t=0,    shape (6,)
-    v_u_left0: np.ndarray,  # vecteur propre instable gauche à t=0 (biorthonorm.)
-    v_u0: np.ndarray,  # vecteur propre instable droit à t=0
-) -> tuple[np.ndarray, np.ndarray]:
+    Phi_k: NDArray[np.float64],
+    v_s0: NDArray[np.float64],
+    v_u_left0: NDArray[np.float64],
+    v_u0: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Propage v_s et v_u_left au temps t_k via la STM.
 
-    v_s(t_k)       = Φ(t_k) · v_s(0)            (stable droit)
+    v_s(t_k)      = Φ(t_k) · v_s(0)            (stable droit)
     v_u_left(t_k) = Φ^{-T}(t_k) · v_u_left(0)  (instable gauche)
 
     La normalisation biorthogonale ⟨v_u_left, v_u⟩ = 1 est préservée par
     cette propagation (propriété de la STM), on renormalise quand même pour
     éviter l'accumulation d'erreurs numériques.
+
+    Parameters
+    ----------
+    Phi_k     : (6,6) STM Φ(t_k, 0)
+    v_s0      : (6,)  vecteur propre stable à t=0
+    v_u_left0 : (6,) vecteur propre instable gauche à t=0 (biorthonorm.)
+    v_u0      : (6,) vecteur propre instable droit à t=0
     """
+
     # Propagation du vecteur stable
     v_s_k = Phi_k @ v_s0
-    norm_s = np.linalg.norm(v_s_k)
+    norm_s = np.float64(np.linalg.norm(v_s_k))
     if norm_s > 1e-14:
         v_s_k /= norm_s
 
@@ -81,7 +88,7 @@ def _local_eigvecs(
 
     # Propagation du vecteur instable droit (pour biorthonormalisation)
     v_u_k = Phi_k @ v_u0
-    dot = np.dot(v_u_left_k, v_u_k)
+    dot = np.float64(np.dot(v_u_left_k, v_u_k))
     if abs(dot) > 1e-14:
         v_u_left_k /= dot
 
@@ -89,11 +96,11 @@ def _local_eigvecs(
 
 
 def evsk_delta_v(
-    dx: np.ndarray,
-    v_s: np.ndarray,
-    v_u_left: np.ndarray,
-    dv_max_adim: float = 1e-4,
-) -> np.ndarray:
+    dx: NDArray[np.float64],
+    v_s: NDArray[np.float64],
+    v_u_left: NDArray[np.float64],
+    dv_max_adim: np.float64 = np.float64(1e-4),
+) -> NDArray:
     """
     Calcule le vecteur ΔV selon l'algorithme EVSK.
 
@@ -102,7 +109,7 @@ def evsk_delta_v(
     dx          : (6,)  écart d'état δx = x_réel - x_réf
     v_s         : (6,)  vecteur propre stable LOCAL (propagé par STM)
     v_u_left    : (6,)  vecteur propre instable gauche LOCAL (biorthonorm.)
-    dv_max_adim : float plafond de sécurité sur |ΔV| [adim. vitesse]
+    dv_max_adim : np.float64 plafond de sécurité sur |ΔV| [adim. vitesse]
 
     Returns
     -------
@@ -140,19 +147,19 @@ class StationKeepingSimulation:
 
     Parameters
     ----------
-    Az : float
+    Az : np.float64
         Amplitude hors-plan [adim.].
-    mu : float
+    mu : np.float64
         Paramètre de masse CR3BP.
-    n_revolutions : float
+    n_revolutions : np.float64
         Durée de simulation [révolutions halo].
     n_steps_per_rev : int
         Pas RK4 par révolution.
-    dt_maneuver_days : float
+    dt_maneuver_days : np.float64
         Intervalle entre manœuvres [jours]. Défaut : 21 j.
     perturbation : array (6,) or None
         Perturbation initiale. Défaut : +100 km radial.
-    dv_max_ms : float
+    dv_max_ms : np.float64
         Plafond de sécurité sur |ΔV| [m/s].
     n_stm_steps : int
         Pas pour la monodromie et la STM de référence.
@@ -160,13 +167,13 @@ class StationKeepingSimulation:
 
     def __init__(
         self,
-        Az: float = 0.00279,
-        mu: float = MU_SUN_EARTH,
-        n_revolutions: float = 4.0,
+        Az: np.float64 = 0.00279,
+        mu: np.float64 = MU_SUN_EARTH,
+        n_revolutions: np.float64 = 4.0,
         n_steps_per_rev: int = 5000,
-        dt_maneuver_days: float = 21.0,
-        perturbation: np.ndarray | None = None,
-        dv_max_ms: float = 2.0,
+        dt_maneuver_days: np.float64 = 21.0,
+        perturbation: NDArray | None = None,
+        dv_max_ms: np.float64 = 2.0,
         n_stm_steps: int = 10000,
     ):
         self.Az = Az
@@ -179,32 +186,34 @@ class StationKeepingSimulation:
         self.dv_max_adim = dv_max_ms / V_STAR_MS
         self._perturbation = perturbation
 
-        self.times: np.ndarray | None = None
-        self.states: np.ndarray | None = None
-        self.states_free: np.ndarray | None = None
-        self.states_ref: np.ndarray | None = None
-        self.jacobi: np.ndarray | None = None
+        self.times: NDArray | None = None
+        self.states: NDArray | None = None
+        self.states_free: NDArray | None = None
+        self.states_ref: NDArray | None = None
+        self.jacobi: NDArray | None = None
         self.maneuvers: list[Maneuver] = []
 
-        self.M: np.ndarray | None = None
-        self.v_s: np.ndarray | None = None
-        self.v_s_list: list[np.ndarray] = []
-        self.v_u: np.ndarray | None = None
-        self.v_u_left: np.ndarray | None = None
+        self.M: NDArray | None = None
+        self.v_s: NDArray | None = None
+        self.v_s_list: list[NDArray] = []
+        self.v_u: NDArray | None = None
+        self.v_u_left: NDArray | None = None
         self.lam_s: complex | None = None
         self.lam_u: complex | None = None
-        self.T_halo: float | None = None
-        self.state0_ref: np.ndarray | None = None
+        self.T_halo: np.float64 | None = None
+        self.state0_ref: NDArray | None = None
 
         # STM dense sur une période (pour propagation des vecteurs propres)
-        self._t_stm: np.ndarray | None = None  # shape (N_stm,)
-        self._stm_arr: np.ndarray | None = None  # shape (N_stm, 6, 6)
+        self._t_stm: NDArray | None = None  # shape (N_stm,)
+        self._stm_arr: NDArray | None = None  # shape (N_stm, 6, 6)
 
     # ------------------------------------------------------------------
 
     def run(self):
         # 1. État initial et période
-        state0, T_half = richardson_halo_L2(self.Az, self.mu, northern=True, phi=0.0)
+        state0, T_half, c2 = richardson_halo_L2(
+            self.Az, self.mu, northern=True, phi=0.0
+        )
         self.T_halo = 2 * T_half
         self.state0_ref = state0
         t_end = self.n_revolutions * self.T_halo
@@ -269,32 +278,30 @@ class StationKeepingSimulation:
 
     # ------------------------------------------------------------------
 
-    def _ref_state(self, t: float) -> np.ndarray:
+    def _ref_state(self, t: np.float64) -> NDArray:
         """Interpolation de la référence à l'instant t."""
         assert self.T_halo
-        t_mod = t % self.T_halo
-
-        idx = np.clip(np.searchsorted(self._t_ref, t_mod), 1, len(self._t_ref) - 1)
+        idx = np.clip(np.searchsorted(self._t_ref, t), 1, len(self._t_ref) - 1)
         t0, t1 = self._t_ref[idx - 1], self._t_ref[idx]
         s0, s1 = self._s_ref[idx - 1], self._s_ref[idx]
         if t1 == t0:
             return s0
         return s0 + (t - t0) / (t1 - t0) * (s1 - s0)
 
-    def _stm_at(self, t: float) -> np.ndarray:
+    def _stm_at(self, t: np.float64) -> NDArray:
         """
         STM Φ(t mod T, 0) par interpolation sur le tableau pré-calculé.
         On utilise t mod T_halo car la STM est périodique (approximativement).
         """
 
         assert self.T_halo and self._t_stm is not None and self._stm_arr is not None
-        t_mod = t % self.T_halo
-        idx = np.clip(np.searchsorted(self._t_stm, t_mod), 1, len(self._t_stm) - 1)
+
+        idx = np.clip(np.searchsorted(self._t_stm, t), 1, len(self._t_stm) - 1)
         t0, t1 = self._t_stm[idx - 1], self._t_stm[idx]
         P0, P1 = self._stm_arr[idx - 1], self._stm_arr[idx]
         if t1 == t0:
             return P0
-        alpha = (t_mod - t0) / (t1 - t0)
+        alpha = (t - t0) / (t1 - t0)
         return P0 + alpha * (P1 - P0)
 
     def _integrate_with_sk(self, s0, t_end, h, f):
@@ -327,7 +334,7 @@ class StationKeepingSimulation:
 
         return times, states
 
-    def _apply_maneuver(self, t: float, state: np.ndarray) -> np.ndarray:
+    def _apply_maneuver(self, t: np.float64, state: NDArray) -> NDArray:
         x_ref = self._ref_state(t)
         dx = state - x_ref
 
@@ -350,8 +357,8 @@ class StationKeepingSimulation:
                 t_adim=t,
                 t_days=t * T_STAR_SEC / 86400,
                 delta_v=dv,
-                dv_norm=float(np.linalg.norm(dv)),
-                dv_norm_ms=float(np.linalg.norm(dv) * V_STAR_MS),
+                dv_norm=np.float64(np.linalg.norm(dv)),
+                dv_norm_ms=np.float64(np.linalg.norm(dv) * V_STAR_MS),
                 state_before=state.copy(),
                 state_after=state_after.copy(),
                 error_before=dx.copy(),
@@ -362,43 +369,43 @@ class StationKeepingSimulation:
     # ------------------------------------------------------------------
 
     @property
-    def positions(self) -> np.ndarray:
+    def positions(self) -> NDArray:
         assert self.states is not None
         return self.states[:, :3]
 
     @property
-    def positions_free(self) -> np.ndarray:
+    def positions_free(self) -> NDArray:
         assert self.states_free is not None
         return self.states_free[:, :3]
 
     @property
-    def positions_ref(self) -> np.ndarray:
+    def positions_ref(self) -> NDArray:
         assert self.states_ref is not None
         return self.states_ref[:, :3]
 
     @property
-    def times_days(self) -> np.ndarray:
+    def times_days(self) -> NDArray:
         assert self.times is not None
         return self.times * T_STAR_SEC / 86400
 
     @property
-    def dv_norms_ms(self) -> np.ndarray:
+    def dv_norms_ms(self) -> NDArray:
         return np.array([m.dv_norm_ms for m in self.maneuvers])
 
     @property
-    def maneuver_times_days(self) -> np.ndarray:
+    def maneuver_times_days(self) -> NDArray:
         return np.array([m.t_days for m in self.maneuvers])
 
     @property
-    def total_dv_ms(self) -> float:
-        return float(np.sum(self.dv_norms_ms))
+    def total_dv_ms(self) -> np.float64:
+        return np.float64(np.sum(self.dv_norms_ms))
 
     @property
-    def position_errors(self) -> np.ndarray:
+    def position_errors(self) -> NDArray:
         return np.linalg.norm(self.positions - self.positions_ref, axis=1) * 1.496e8
 
     @property
-    def position_errors_free(self) -> np.ndarray:
+    def position_errors_free(self) -> NDArray:
         return (
             np.linalg.norm(self.positions_free - self.positions_ref, axis=1) * 1.496e8
         )

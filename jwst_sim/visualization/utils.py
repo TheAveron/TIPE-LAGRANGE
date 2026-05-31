@@ -69,12 +69,12 @@ def add_colorbar_time(fig, ax, scatter, label: str = "Temps"):
     plt.setp(cb.ax.yaxis.get_ticklabels(), color=COLORS["text"])
 
 
-def relative_drift(arr: np.ndarray) -> float:
+def relative_drift(arr: NDArray) -> np.float64:
     """Drift relatif d'une quantité censée être conservée."""
     return (arr.max() - arr.min()) / abs(arr[0])
 
 
-def annotate_extrema(ax, x: np.ndarray, y: np.ndarray, label: str = "", n: int = 1):
+def annotate_extrema(ax, x: NDArray, y: NDArray, label: str = "", n: int = 1):
     """Annote les n extrema globaux (max et min) sur un axe."""
     idx_max = np.argmax(y)
     idx_min = np.argmin(y)

@@ -2,9 +2,10 @@
 stationkeeping.py — Graphes spécifiques à la simulation avec corrections EVSK.
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-from .utils import set_style, COLORS, annotate_extrema
+import numpy as np
+
+from .utils import COLORS, annotate_extrema, set_style
 
 
 def plot_sk_trajectory(sim_sk, save_path: str | None = None):
@@ -60,7 +61,7 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
         pos_sk[:, 2],
         c=t_norm,
         cmap="plasma",
-        s=0.4,  # type: ignore
+        s=0.4,
         label="Avec SK",
     )
 
@@ -77,7 +78,7 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
         ax3.scatter(
             man_pos[:, 0],
             man_pos[:, 1],
-            man_pos[:, 2],  # type: ignore
+            man_pos[:, 2],
             color="white",
             s=20,
             zorder=6,

@@ -4,30 +4,22 @@ main.py — Point d'entrée principal de la simulation JWST.
 Lance les deux simulations (CR3BP et inertielle) et affiche les graphes.
 """
 
-from matplotlib.pyplot import plot
-
+import numpy as np
 from cr3bp import CR3BPSimulation
-from inertial import InertialSimulation
 from cr3bp.stationkeeping import StationKeepingSimulation
-from visualization import (
-    plot_cr3bp_trajectory,
-    plot_cr3bp_velocity,
-    plot_energy,
-    plot_energy_comparison,
-    plot_inertial_trajectory,
-    plot_inertial_velocity,
-    plot_jacobi,
-    plot_velocity_comparison,
-    plot_sk_trajectory,
-    plot_sk_jacobi,
-    plot_delta_v_history,
-)
+from inertial import InertialSimulation
+from numpy.typing import NDArray
+from visualization import (plot_cr3bp_trajectory, plot_cr3bp_velocity,
+                           plot_delta_v_history, plot_energy,
+                           plot_energy_comparison, plot_inertial_trajectory,
+                           plot_inertial_velocity, plot_jacobi, plot_sk_jacobi,
+                           plot_sk_trajectory, plot_velocity_comparison)
 
 # Paramètres communs
 
-AZ_ADIM = 0.00240  # 0.00279  # amplitude hors-plan JWST ≈ 418 000 km
-N_REVOLUTIONS = 6.0  # nombre de révolutions halo à simuler
-N_STEPS = 10000  # pas RK4 par révolution (augmenter pour plus de précision)
+AZ_ADIM = np.float64(0.00240)  # 0.00279  # amplitude hors-plan JWST ≈ 418 000 km
+N_REVOLUTIONS = np.int16(6)  # nombre de révolutions halo à simuler
+N_STEPS = np.int16(10000)  # pas RK4 par révolution (augmenter pour plus de précision)
 
 # 1. Simulation CR3BP
 
@@ -40,7 +32,7 @@ sim_cr3bp = CR3BPSimulation(
     n_revolutions=N_REVOLUTIONS,
     n_steps_per_rev=N_STEPS,
     northern=True,
-    phi=0.0,
+    phi=np.float64(0),
 )
 sim_cr3bp.run()
 

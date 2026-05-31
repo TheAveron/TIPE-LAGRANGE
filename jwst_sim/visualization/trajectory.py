@@ -40,7 +40,7 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
     ax3 = fig.add_subplot(2, 2, 1, projection="3d")
     ax3.set_facecolor(COLORS["bg"])
     sc = ax3.scatter(
-        dpos[:, 0], dpos[:, 1], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5, alpha=0.8  # type: ignore
+        dpos[:, 0], dpos[:, 1], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5, alpha=0.8
     )
     ax3.scatter(0, 0, 0, color=COLORS["L2"], s=60, zorder=5, label="L2")
     ax3.set_xlabel("ΔX [km]")
@@ -119,7 +119,7 @@ def plot_inertial_trajectory(sim, save_path: str | None = None):
         pos_jwst[:, 2],
         c=t_norm,
         cmap="plasma",
-        s=0.5,  # type: ignore
+        s=0.5,
         alpha=0.8,
         label="JWST",
     )

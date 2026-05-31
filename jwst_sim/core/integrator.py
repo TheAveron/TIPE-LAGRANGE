@@ -10,14 +10,15 @@ Choix RK4 :
 from typing import Callable
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 def rk4_step(
-    f: Callable[[float, np.ndarray], np.ndarray],
-    t: float,
-    y: np.ndarray,
-    h: float,
-) -> np.ndarray:
+    f: Callable[[np.float64, NDArray[np.float64]], NDArray[np.float64]],
+    t: np.float64,
+    y: NDArray[np.float64],
+    h: np.float64,
+) -> NDArray[np.float64]:
     """
     Un pas RK4 classique.
 
@@ -25,18 +26,19 @@ def rk4_step(
     ----------
     f : callable(t, y) -> dy/dt
         Fonction dérivée.
-    t : float
+    t : np.float64
         Temps courant.
-    y : np.ndarray
+    y : NDArray[np.float64]
         État courant.
-    h : float
+    h : np.float64
         Pas de temps.
 
     Returns
     -------
-    y_next : np.ndarray
+    y_next : NDArray[np.float64]
         État après un pas.
     """
+
     k1 = f(t, y)
     k2 = f(t + h / 2, y + h * k1 / 2)
     k3 = f(t + h / 2, y + h * k2 / 2)
@@ -46,37 +48,38 @@ def rk4_step(
 
 
 def integrate(
-    f: Callable[[float, np.ndarray], np.ndarray],
-    y0: np.ndarray,
-    t0: float,
-    t_end: float,
-    h: float,
-    callback: Callable[[float, np.ndarray], None] | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    f: Callable[[np.float64, NDArray[np.float64]], NDArray[np.float64]],
+    y0: NDArray[np.float64],
+    t0: np.float64,
+    t_end: np.float64,
+    h: np.float64,
+    callback: Callable[[np.float64, NDArray[np.float64]], None] | None = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Intégration RK4 sur [t0, t_end].
 
     Parameters
     ----------
     f : callable(t, y) -> dy/dt
-    y0 : np.ndarray
+    y0 : NDArray[np.float64]
         État initial.
-    t0, t_end : float
+    t0, t_end : np.float64
         Bornes de l'intégration.
-    h : float
+    h : np.float64
         Pas de temps fixe.
     callback : callable(t, y), optional
         Appelé à chaque pas (ex. pour enregistrer des diagnostics).
 
     Returns
     -------
-    t_arr : np.ndarray, shape (N,)
-    y_arr : np.ndarray, shape (N, len(y0))
+    t_arr : NDArray[np.float64], shape (N,)
+    y_arr : NDArray[np.float64], shape (N, len(y0))
     """
+
     n_steps = int(np.ceil((t_end - t0) / h))
     # Dernier pas potentiellement raccourci
-    times = np.empty(n_steps + 1)
-    states = np.empty((n_steps + 1, len(y0)))
+    times = np.empty(n_steps + 1, dtype=np.float64)
+    states = np.empty((n_steps + 1, len(y0)), dtype=np.float64)
 
     t = t0
     y = y0.copy()

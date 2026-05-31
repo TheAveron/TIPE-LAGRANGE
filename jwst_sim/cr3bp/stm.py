@@ -20,13 +20,16 @@ Système augmenté pour l'intégration simultanée de [x, Φ] :
 """
 
 import numpy as np
-from .equations import MU_SUN_EARTH, eom
 from core.integrator import integrate
+from numpy.typing import NDArray
+
+from .equations import MU_SUN_EARTH, eom
+
+ZERO = np.float64(0)
+
 
 # 1. Jacobien analytique des équations CR3BP
-
-
-def jacobian(state: np.ndarray, mu: float) -> np.ndarray:
+def jacobian(state: NDArray[np.float64], mu: np.float64) -> NDArray[np.float64]:
     """
     Jacobien A = ∂f/∂x des équations CR3BP, évalué en state.
 
@@ -39,13 +42,14 @@ def jacobian(state: np.ndarray, mu: float) -> np.ndarray:
 
     Parameters
     ----------
-    state : array (6,)  [x, y, z, vx, vy, vz]
-    mu    : float
+    state : NDArray[np.float64], shape (6,)  [x, y, z, vx, vy, vz]
+    mu    : np.float64
 
     Returns
     -------
-    A : np.ndarray, shape (6, 6)
+    A : NDArray[np.float64], shape (6, 6)
     """
+
     x, y, z = state[0], state[1], state[2]
 
     d2 = (x + mu) ** 2 + y**2 + z**2
@@ -66,17 +70,19 @@ def jacobian(state: np.ndarray, mu: float) -> np.ndarray:
     Uxz = 3 * (1 - mu) * (x + mu) * z / d5 + 3 * mu * (x - 1 + mu) * z / r5
     Uyz = 3 * (1 - mu) * y * z / d5 + 3 * mu * y * z / r5
 
-    A = np.zeros((6, 6))
-    A[:3, 3:] = np.eye(3)
-    A[3:, :3] = np.array([[Uxx, Uxy, Uxz], [Uxy, Uyy, Uyz], [Uxz, Uyz, Uzz]])
-    A[3:, 3:] = np.array([[0, 2, 0], [-2, 0, 0], [0, 0, 0]])
+    A = np.zeros((6, 6), dtype=np.float64)
+    A[:3, 3:] = np.eye(3, dtype=np.float64)
+    A[3:, :3] = np.array(
+        [[Uxx, Uxy, Uxz], [Uxy, Uyy, Uyz], [Uxz, Uyz, Uzz]], dtype=np.float64
+    )
+    A[3:, 3:] = np.array([[0, 2, 0], [-2, 0, 0], [0, 0, 0]], dtype=np.float64)
     return A
 
 
 # 2. Équations du système augmenté [état, STM]
-
-
-def eom_stm(t: float, y: np.ndarray, mu: float) -> np.ndarray:
+def eom_stm(
+    t: np.float64, y: NDArray[np.float64], mu: np.float64
+) -> NDArray[np.float64]:
     """
     Dérivée du vecteur augmenté [x(6), vec(Φ)(36)].
 
@@ -87,10 +93,10 @@ def eom_stm(t: float, y: np.ndarray, mu: float) -> np.ndarray:
     Phi = y[6:].reshape(6, 6, order="F")
     dstate = eom(t, state, mu)
     dPhi = jacobian(state, mu) @ Phi
-    return np.concatenate([dstate, dPhi.flatten(order="F")])
+    return np.concatenate([dstate, dPhi.flatten(order="F")], dtype=np.float64)
 
 
-def eom_stm_factory(mu: float):
+def eom_stm_factory(mu: np.float64):
     def _f(t, y):
         return eom_stm(t, y, mu)
 
@@ -101,32 +107,38 @@ def eom_stm_factory(mu: float):
 
 
 def compute_monodromy(
-    state0: np.ndarray,
-    T: float,
-    mu: float = MU_SUN_EARTH,
-    n_steps: int = 10000,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    state0: NDArray[np.float64],
+    T: np.float64,
+    mu: np.float64 = MU_SUN_EARTH,
+    n_steps: np.int16 = np.int16(10000),
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     Intègre le système augmenté sur une période T.
 
     Returns
     -------
-    M     : np.ndarray (6, 6)     matrice de monodromie Φ(T, 0)
-    times : np.ndarray (N,)
-    stms  : np.ndarray (N, 6, 6)  STM à chaque instant
+    M     : NDArray[np.float64] (6, 6)     matrice de monodromie Φ(T, 0)
+    times : NDArray[np.float64] (N,)
+    stms  : NDArray[np.float64] (N, 6, 6)  STM à chaque instant
     """
-    y0 = np.concatenate([state0, np.eye(6).flatten(order="F")])
-    times, ys = integrate(eom_stm_factory(mu), y0, 0.0, T, T / n_steps)
+
+    y0 = np.concatenate([state0, np.eye(6).flatten(order="F")], dtype=np.float64)
+    times, ys = integrate(eom_stm_factory(mu), y0, ZERO, T, T / n_steps)
     stms = ys[:, 6:].reshape(-1, 6, 6, order="F")
     return stms[-1], times, stms
 
 
 # 4. Extraction des directions stable et instable
-
-
 def stable_unstable_eigvecs(
-    M: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, complex, complex]:
+    M: NDArray[np.float64],
+) -> tuple[
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    np.complex128,
+    np.complex128,
+]:
     """
     Extrait les vecteurs propres stable et instable de la monodromie.
 
@@ -139,18 +151,20 @@ def stable_unstable_eigvecs(
 
     Returns
     -------
-    v_s, v_u, v_s_left, v_u_left : np.ndarray (6,)
+    v_s, v_u, v_s_left, v_u_left : NDArray (6,)
     lam_s, lam_u : complex
     """
     eigvals_R, V_R = np.linalg.eig(M)  # droits  : M  v = λ v
     eigvals_L, V_L = np.linalg.eig(M.T)  # gauches : M^T w = λ w
 
-    mods = np.abs(eigvals_R)
+    mods = np.abs(eigvals_R, dtype=np.float64)
 
     # Valeur propre la plus petite en module → stable
     # Valeur propre la plus grande en module → instable
     # On exclut les paires complexes en cherchant parmi les réelles
-    real_mask = np.abs(eigvals_R.imag) < 1e-6 * np.abs(eigvals_R.real + 1e-30)  # type: ignore
+    real_mask = np.abs(eigvals_R.imag, dtype=np.float64) < 1e-6 * np.abs(
+        eigvals_R.real + 1e-30, dtype=np.float64
+    )  #
 
     if real_mask.sum() >= 2:
         real_idx = np.where(real_mask)[0]
@@ -171,10 +185,10 @@ def stable_unstable_eigvecs(
     idx_s_L = int(np.argmin(np.abs(eigvals_L - lam_s)))
     idx_u_L = int(np.argmin(np.abs(eigvals_L - lam_u)))
 
-    v_s_vec = V_R[:, idx_s].real  # type: ignore
-    v_u_vec = V_R[:, idx_u].real  # type: ignore
-    v_s_left_vec = V_L[:, idx_s_L].real  # type: ignore
-    v_u_left_vec = V_L[:, idx_u_L].real  # type: ignore
+    v_s_vec = V_R[:, idx_s].real
+    v_u_vec = V_R[:, idx_u].real
+    v_s_left_vec = V_L[:, idx_s_L].real
+    v_u_left_vec = V_L[:, idx_u_L].real
 
     # Normalisation L2
     v_s_vec /= np.linalg.norm(v_s_vec)
@@ -196,7 +210,7 @@ def stable_unstable_eigvecs(
     return v_s_vec, v_u_vec, v_s_left_vec, v_u_left_vec, lam_s, lam_u
 
 
-def print_monodromy_summary(M: np.ndarray, mu: float = MU_SUN_EARTH):
+def print_monodromy_summary(M: NDArray[np.float64], mu: np.float64 = MU_SUN_EARTH):
     eigvals = np.linalg.eigvals(M)
     mods = np.abs(eigvals)
     v_s, _, _, _, lam_s, lam_u = stable_unstable_eigvecs(M)

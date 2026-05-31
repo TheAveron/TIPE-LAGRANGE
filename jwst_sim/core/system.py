@@ -10,6 +10,7 @@ Le System est uniquement responsable de :
 """
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .body import Body
 
@@ -27,7 +28,7 @@ class System:
 
     def __init__(self, bodies: list[Body]):
         self.bodies = bodies
-        self._time_history: list[float] = []
+        self._time_history: list[np.float64] = []
 
     # Accesseurs
 
@@ -50,7 +51,8 @@ class System:
 
     # Historique temporel
 
-    def record_time(self, t: float):
+    def record_time(self, t: np.float64):
+        t = np.float64(t)
         self._time_history.append(t)
 
     def clear_history(self):
@@ -59,11 +61,10 @@ class System:
             b.clear_history()
 
     @property
-    def time_history(self) -> np.ndarray:
-        return np.array(self._time_history)
+    def time_history(self) -> NDArray[np.float64]:
+        return np.array(self._time_history, dtype=np.float64)
 
     # Diagnostics rapides (extrema pour débogage)
-
     def print_summary(self, label: str = ""):
         """Affiche quelques valeurs extremum après intégration."""
         tag = f"[{label}] " if label else ""

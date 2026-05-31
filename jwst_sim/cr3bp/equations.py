@@ -20,30 +20,35 @@ Pseudo-potentiel :
 """
 
 import numpy as np
+from numpy.typing import NDArray
 
 # Paramètre de masse Sun–Earth (valeur JPL, articles AAS 22-623 et 19-806)
-MU_SUN_EARTH: float = 3.040423389123456e-6
+MU_SUN_EARTH = np.float64(3.040423389123456e-6)
 
 
-def distances(x: float, y: float, z: float, mu: float) -> tuple[float, float]:
+def distances(
+    x: np.float64, y: np.float64, z: np.float64, mu: np.float64
+) -> tuple[np.float64, np.float64]:
     """
     Distances adim. du spacecraft au Soleil (d) et à la Terre (r).
 
     d = ||spacecraft - Soleil||,  Soleil en (-μ, 0, 0)
     r = ||spacecraft - Terre||,   Terre  en (1-μ, 0, 0)
     """
-    d = np.sqrt((x + mu) ** 2 + y**2 + z**2)
-    r = np.sqrt((x - 1 + mu) ** 2 + y**2 + z**2)
+    d = np.sqrt((x + mu) ** 2 + y**2 + z**2, dtype=np.float64)
+    r = np.sqrt((x - 1 + mu) ** 2 + y**2 + z**2, dtype=np.float64)
     return d, r
 
 
-def pseudo_potential(x: float, y: float, z: float, mu: float) -> float:
+def pseudo_potential(
+    x: np.float64, y: np.float64, z: np.float64, mu: np.float64
+) -> np.float64:
     """Pseudo-potentiel U* (scalaire)."""
     d, r = distances(x, y, z, mu)
     return (1 - mu) / d + mu / r + 0.5 * (x**2 + y**2)
 
 
-def jacobi_constant(state: np.ndarray, mu: float) -> float:
+def jacobi_constant(state: NDArray[np.float64], mu: np.float64) -> np.float64:
     """
     Constante de Jacobi C = 2U* - v².
 
@@ -53,26 +58,28 @@ def jacobi_constant(state: np.ndarray, mu: float) -> float:
     Parameters
     ----------
     state : array (6,)  [x, y, z, vx, vy, vz]  adim.
-    mu    : float
+    mu    : np.float64
     """
     x, y, z, vx, vy, vz = state
     v2 = vx**2 + vy**2 + vz**2
     return 2 * pseudo_potential(x, y, z, mu) - v2
 
 
-def eom(t: float, state: np.ndarray, mu: float) -> np.ndarray:
+def eom(
+    t: np.float64, state: NDArray[np.float64], mu: np.float64
+) -> NDArray[np.float64]:
     """
     Dérivée du vecteur d'état dans le CR3BP.
 
     Parameters
     ----------
-    t     : float         temps adim. (non utilisé, système autonome)
-    state : np.ndarray    [x, y, z, vx, vy, vz]
-    mu    : float
+    t     : np.float64         temps adim. (non utilisé, système autonome)
+    state : NDArray    [x, y, z, vx, vy, vz]
+    mu    : np.float64
 
     Returns
     -------
-    dstate : np.ndarray   [vx, vy, vz, ax, ay, az]
+    dstate : NDArray   [vx, vy, vz, ax, ay, az]
     """
     x, y, z, vx, vy, vz = state
     d, r = distances(x, y, z, mu)
@@ -90,13 +97,13 @@ def eom(t: float, state: np.ndarray, mu: float) -> np.ndarray:
     ay = dUy - 2 * vx
     az = dUz
 
-    return np.array([vx, vy, vz, ax, ay, az])
+    return np.array([vx, vy, vz, ax, ay, az], dtype=np.float64)
 
 
-def eom_factory(mu: float):
+def eom_factory(mu: np.float64):
     """Retourne une fonction eom(t, state) avec mu fixé (pour l'intégrateur)."""
 
-    def _eom(t: float, state: np.ndarray) -> np.ndarray:
+    def _eom(t: np.float64, state: NDArray[np.float64]) -> NDArray[np.float64]:
         return eom(t, state, mu)
 
     return _eom

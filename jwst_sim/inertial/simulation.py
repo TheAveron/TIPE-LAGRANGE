@@ -18,18 +18,19 @@ Unités : SI (m, kg, s).
 import numpy as np
 from core.body import Body
 from core.integrator import integrate
+from numpy.typing import NDArray
 
 from .forces import G, gravitational_acceleration, mechanical_energy
 
 # Constantes physiques SI
 
 
-L_STAR: float = 1.495_978_707e11  # 1 UA [m]
-M_SUN: float = 1.989e30  # [kg]
-M_EARTH_MOON: float = 6.045e24  # Terre + Lune fusionnée [kg]  (≈ 5.972e24 + 7.342e22)
-T_EARTH_S: float = 365.25 * 86400  # Période orbitale Terre [s]
-OMEGA_EARTH: float = 2 * np.pi / T_EARTH_S  # Vitesse angulaire [rad/s]
-R_EARTH_ORBIT: float = L_STAR  # Rayon orbite circulaire Terre = 1 UA
+L_STAR = np.float64(1.495_978_707e11)  # 1 UA [m]
+M_SUN = np.float64(1.989e30)  # [kg]
+M_EARTH_MOON = np.float64(6.045e24)
+T_EARTH_S = np.float64(365.25 * 86400)  # Période orbitale Terre [s]
+OMEGA_EARTH = np.float64(2 * np.pi / T_EARTH_S)  # Vitesse angulaire [rad/s]
+R_EARTH_ORBIT = np.float64(L_STAR)  # Rayon orbite circulaire Terre = 1 UA
 
 
 class InertialSimulation:
@@ -38,12 +39,12 @@ class InertialSimulation:
 
     Parameters
     ----------
-    state0_cr3bp : np.ndarray, shape (6,)
+    state0_cr3bp : NDArray, shape (6,)
         État initial du JWST en coordonnées CR3BP adim. (depuis Richardson).
         Sera converti automatiquement en SI.
-    n_revolutions : float
+    n_revolutions : np.float64
         Nombre de révolutions halo à simuler.
-    T_halo_adim : float
+    T_halo_adim : np.float64
         Période halo en unités adim. (fournie par CR3BPSimulation).
     n_steps_per_rev : int
         Nombre de pas RK4 par révolution.
@@ -51,9 +52,9 @@ class InertialSimulation:
 
     def __init__(
         self,
-        state0_cr3bp: np.ndarray,
-        n_revolutions: float = 4.0,
-        T_halo_adim: float = 3.0,  # valeur typique JWST
+        state0_cr3bp: NDArray,
+        n_revolutions: np.float64 = np.float64(4),
+        T_halo_adim: np.float64 = np.float64(3),  # valeur typique JWST
         n_steps_per_rev: int = 5000,
     ):
         self.n_revolutions = n_revolutions
@@ -72,19 +73,19 @@ class InertialSimulation:
         self.state0_si = self._cr3bp_to_inertial(state0_cr3bp)
         self.jwst = Body(
             "JWST",
-            mass=6500.0,
+            mass=np.float64(6500),
             position=self.state0_si[:3],
             velocity=self.state0_si[3:],
         )
 
         # Résultats
-        self.times: np.ndarray | None = None
-        self.states: np.ndarray | None = None
-        self.energy: np.ndarray | None = None
+        self.times: NDArray | None = None
+        self.states: NDArray | None = None
+        self.energy: NDArray | None = None
 
     # Conversion CR3BP adim. → inertiel SI  (à t=0)
 
-    def _cr3bp_to_inertial(self, state_cr3bp: np.ndarray) -> np.ndarray:
+    def _cr3bp_to_inertial(self, state_cr3bp: NDArray) -> NDArray:
         """
         Convertit [x,y,z,vx,vy,vz] adim. CR3BP → SI inertiel à t=0.
 
@@ -125,7 +126,7 @@ class InertialSimulation:
 
     # Équations de mouvement N-corps (référentiel inertiel)
 
-    def _eom(self, t: float, state: np.ndarray) -> np.ndarray:
+    def _eom(self, t: np.float64, state: NDArray) -> NDArray:
         """
         dy/dt pour le vecteur d'état [x, y, z, vx, vy, vz] du JWST.
         Les corps massifs (Soleil, Terre) sont mis à jour à chaque appel.
@@ -149,7 +150,9 @@ class InertialSimulation:
         t_end = self.n_revolutions * self.T_halo_s
         h = self.T_halo_s / self.n_steps_per_rev
 
-        self.times, self.states = integrate(self._eom, self.state0_si, 0.0, t_end, h)
+        self.times, self.states = integrate(
+            self._eom, self.state0_si, np.float64(0), t_end, h
+        )
 
         # Énergie mécanique spécifique à chaque pas
         self.energy = np.empty(len(self.times))
@@ -189,28 +192,28 @@ class InertialSimulation:
     # Accesseurs
 
     @property
-    def positions(self) -> np.ndarray:
+    def positions(self) -> NDArray:
         """shape (N, 3) [m]"""
         assert self.states is not None
         return self.states[:, :3]
 
     @property
-    def velocities(self) -> np.ndarray:
+    def velocities(self) -> NDArray:
         """shape (N, 3) [m/s]"""
         assert self.states is not None
         return self.states[:, 3:]
 
     @property
-    def speeds(self) -> np.ndarray:
+    def speeds(self) -> NDArray:
         """shape (N,) [m/s]"""
         return np.linalg.norm(self.velocities, axis=1)
 
     @property
-    def times_days(self) -> np.ndarray:
+    def times_days(self) -> NDArray:
         assert self.times is not None
         return self.times / 86400
 
-    def earth_positions(self) -> np.ndarray:
+    def earth_positions(self) -> NDArray:
         """Positions de la Terre à chaque instant, shape (N, 3) [m]."""
         assert self.times is not None
         theta = OMEGA_EARTH * self.times
