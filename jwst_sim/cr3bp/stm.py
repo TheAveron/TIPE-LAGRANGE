@@ -20,7 +20,7 @@ Système augmenté pour l'intégration simultanée de [x, Φ] :
 """
 
 import numpy as np
-from core.integrator import integrate
+from core.integrator import integrate, rk4_step
 from numpy.typing import NDArray
 
 from .equations import MU_SUN_EARTH, eom
@@ -128,6 +128,81 @@ def compute_monodromy(
     return stms[-1], times, stms
 
 
+# 3b. Correction différentielle (tir simple) → orbite halo périodique
+def _integrate_to_half_period(
+    state0: NDArray[np.float64],
+    mu: np.float64,
+    T_guess: np.float64,
+    n_steps: int = 20000,
+) -> tuple[np.float64, NDArray[np.float64], NDArray[np.float64]]:
+    """
+    Intègre le système augmenté [état, Φ] de t=0 jusqu'au PREMIER passage y=0 (t>0).
+
+    La graine est sur le plan xz (y0=0) ; le prochain passage y=0 marque la
+    demi-période. Renvoie (t_cross, état(6) au passage, Φ(6,6) au passage).
+    """
+    f = eom_stm_factory(mu)
+    y = np.concatenate([state0, np.eye(6).flatten(order="F")], dtype=np.float64)
+    h = np.float64(T_guess / n_steps)
+    t = ZERO
+    for i in range(n_steps):
+        y_prev, t_prev = y.copy(), t
+        y = rk4_step(f, t, y, h)
+        t = t + h
+        # passage par zéro de la composante y (indice 1), après avoir quitté y=0
+        if i > 0 and y_prev[1] * y[1] < 0:
+            frac = y_prev[1] / (y_prev[1] - y[1])  # interpolation linéaire du zéro
+            y_cross = rk4_step(f, t_prev, y_prev, frac * h)
+            t_cross = t_prev + frac * h
+            return t_cross, y_cross[:6], y_cross[6:].reshape(6, 6, order="F")
+    raise RuntimeError("Aucun passage y=0 trouvé dans [0, T_guess].")
+
+
+def correct_halo(
+    state0: NDArray[np.float64],
+    mu: np.float64 = MU_SUN_EARTH,
+    T_guess: np.float64 = np.float64(3.0),
+    tol: np.float64 = np.float64(1e-11),
+    max_iter: int = 50,
+) -> tuple[NDArray[np.float64], np.float64]:
+    """
+    Raffine une graine de Richardson en orbite halo PÉRIODIQUE par tir simple.
+
+    On exploite la symétrie des halos par rapport au plan xz : la graine est de la
+    forme [x0, 0, z0, 0, vy0, 0] (passage perpendiculaire). On intègre jusqu'au
+    prochain passage y=0 et on impose vx=vz=0 à ce passage, en ajustant (x0, vy0)
+    à z0 = Az fixé. Newton via la STM, avec correction du temps de vol :
+
+        d[vx; vz] = ( [[Φ41 Φ45],[Φ61 Φ65]] - (1/vy_f)[ax_f; az_f]⊗[Φ21 Φ25] ) [dx0; dvy0]
+
+    Returns
+    -------
+    state0_corr : (6,)  condition initiale périodique corrigée
+    T           : période complète vraie (= 2·t_cross)
+    """
+    s = np.array(state0, dtype=np.float64).copy()
+    err = np.float64(np.inf)
+    for _ in range(max_iter):
+        t_half, s_c, Phi = _integrate_to_half_period(s, mu, T_guess)
+        vx_f, vz_f = s_c[3], s_c[5]
+        err = max(abs(vx_f), abs(vz_f))
+        if err < tol:
+            return s, np.float64(2.0 * t_half)
+        ds = eom(t_half, s_c, mu)
+        ax_f, az_f = ds[3], ds[5]
+        vy_f = s_c[4]
+        Mmat = np.array(
+            [[Phi[3, 0], Phi[3, 4]], [Phi[5, 0], Phi[5, 4]]], dtype=np.float64
+        ) - (1.0 / vy_f) * np.outer(
+            np.array([ax_f, az_f]), np.array([Phi[1, 0], Phi[1, 4]])
+        )
+        d = np.linalg.solve(Mmat, -np.array([vx_f, vz_f], dtype=np.float64))
+        s[0] += d[0]
+        s[4] += d[1]
+        T_guess = np.float64(2.0 * t_half)
+    raise RuntimeError(f"Correction différentielle non convergée (err={err:.2e}).")
+
+
 # 4. Extraction des directions stable et instable
 def stable_unstable_eigvecs(
     M: NDArray[np.float64],
@@ -176,9 +251,6 @@ def stable_unstable_eigvecs(
 
     lam_s = eigvals_R[idx_s]
     lam_u = eigvals_R[idx_u]
-
-    v_s = eigvals_R[idx_s]  # valeur propre stable (pour appariement)
-    v_u_val = eigvals_R[idx_u]
 
     # Appariement des vecteurs gauches : trouver dans eigvals_L celui le plus
     # proche de lam_s et lam_u respectivement.

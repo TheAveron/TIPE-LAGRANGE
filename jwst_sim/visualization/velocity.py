@@ -3,12 +3,13 @@ velocity.py — Graphes de vitesse du JWST.
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
+from cr3bp.simulation import CR3BPSimulation
+from inertial.simulation import InertialSimulation
 
 from .utils import COLORS, annotate_extrema, set_style
 
 
-def plot_cr3bp_velocity(sim, save_path: str | None = None):
+def plot_cr3bp_velocity(sim: CR3BPSimulation, save_path: str | None = None):
     """
     Norme et composantes de la vitesse adim. (CR3BP).
 
@@ -54,7 +55,7 @@ def plot_cr3bp_velocity(sim, save_path: str | None = None):
     plt.show()
 
 
-def plot_inertial_velocity(sim, save_path: str | None = None):
+def plot_inertial_velocity(sim: InertialSimulation, save_path: str | None = None):
     """
     Norme et composantes de la vitesse SI [km/s] (inertiel).
 
@@ -96,7 +97,11 @@ def plot_inertial_velocity(sim, save_path: str | None = None):
     plt.show()
 
 
-def plot_velocity_comparison(sim_cr3bp, sim_inertial, save_path: str | None = None):
+def plot_velocity_comparison(
+    sim_cr3bp: CR3BPSimulation,
+    sim_inertial: InertialSimulation,
+    save_path: str | None = None,
+):
     """
     Vitesse scalaire JWST : CR3BP vs inertiel sur le même graphe.
     Les deux sont convertis en km/s.

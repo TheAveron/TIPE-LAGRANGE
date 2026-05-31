@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 
 from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
 from .lagrange import lagrange_L2, richardson_halo_L2
+from .stm import correct_halo
 
 # Facteur de conversion unité de temps adim → secondes
 # t* = sqrt(l*³ / (G m*))  avec l* = 1 UA, G m* ≈ G(M_sun + M_earth) ≈ G M_sun
@@ -46,7 +47,7 @@ class CR3BPSimulation:
         mu: np.float64 = MU_SUN_EARTH,
         n_revolutions: np.int16 = np.int16(4),
         n_steps_per_rev: np.int16 = np.int16(5000),
-        northern: bool = True,
+        northern: bool = False,
         phi: np.float64 = ZERO,
     ):
         self.Az = Az
@@ -76,7 +77,8 @@ class CR3BPSimulation:
         state0, T_half, c2 = richardson_halo_L2(
             self.Az, self.mu, self.northern, self.phi
         )
-        self.T_halo = 2 * T_half
+
+        state0, self.T_halo = correct_halo(state0, self.mu, T_guess=2 * T_half)
         self.state0 = state0
 
         t_end = self.n_revolutions * self.T_halo

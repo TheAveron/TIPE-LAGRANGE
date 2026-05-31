@@ -5,10 +5,9 @@ utils.py — Style, couleurs et fonctions communes pour les graphes.
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 # Palette
-
-
 COLORS = {
     "jwst": "#00BFFF",  # bleu ciel
     "earth": "#3A9BD5",  # bleu Terre
@@ -18,16 +17,14 @@ COLORS = {
     "jacobi": "#DDA0DD",  # violet Jacobi
     "speed": "#FFA07A",  # orange vitesse
     "grid": "#2A2A3E",  # "#636374",
-    "bg": "#0D0D1A",  # "#E0E0E0",
-    "text": "#E0E0E0",  # "#0D0D1A",
+    "bg": "#FFFFFF",  # "#E0E0E0",
+    "text": "#0D0D1A",
 }
 
 
 # Thème global
-
-
 def set_style():
-    """Applique le thème sombre spatial à tous les graphes."""
+    """Applique le thème à tous les graphes."""
     mpl.rcParams.update(
         {
             "figure.facecolor": COLORS["bg"],
@@ -40,7 +37,7 @@ def set_style():
             "grid.color": COLORS["grid"],
             "grid.linestyle": "--",
             "grid.alpha": 0.4,
-            "legend.facecolor": "#1A1A2E",
+            "legend.facecolor": "#FFFFFF",  # "#1A1A2E",
             "legend.edgecolor": COLORS["text"],
             "font.family": "monospace",
             "font.size": 10,
@@ -69,12 +66,14 @@ def add_colorbar_time(fig, ax, scatter, label: str = "Temps"):
     plt.setp(cb.ax.yaxis.get_ticklabels(), color=COLORS["text"])
 
 
-def relative_drift(arr: NDArray) -> np.float64:
+def relative_drift(arr: NDArray[np.float64]) -> np.float64:
     """Drift relatif d'une quantité censée être conservée."""
     return (arr.max() - arr.min()) / abs(arr[0])
 
 
-def annotate_extrema(ax, x: NDArray, y: NDArray, label: str = "", n: int = 1):
+def annotate_extrema(
+    ax, x: NDArray[np.float64], y: NDArray[np.float64], label: str = "", n: int = 1
+):
     """Annote les n extrema globaux (max et min) sur un axe."""
     idx_max = np.argmax(y)
     idx_min = np.argmin(y)

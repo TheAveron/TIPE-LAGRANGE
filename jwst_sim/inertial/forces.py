@@ -10,15 +10,16 @@ Unités SI :
 """
 
 import numpy as np
+from core.body import Body
 from numpy.typing import NDArray
 
 G = np.float64(6.674_30e-11)  # constante gravitationnelle [m³ kg⁻¹ s⁻²]
 
 
 def gravitational_acceleration(
-    pos_sc: NDArray,
-    bodies: list,  # list[Body] — corps massifs
-) -> NDArray:
+    pos_sc: NDArray[np.float64],
+    bodies: list[Body],
+) -> NDArray[np.float64]:
     """
     Accélération gravitationnelle nette sur le spacecraft.
 
@@ -33,7 +34,7 @@ def gravitational_acceleration(
     -------
     a : NDArray, shape (3,)   [m/s²]
     """
-    a = np.zeros(3)
+    a = np.zeros(3, dtype=np.float64)
     for body in bodies:
         dr = body.position - pos_sc
         dist = np.linalg.norm(dr)
@@ -46,10 +47,10 @@ def gravitational_acceleration(
 
 
 def mechanical_energy(
-    pos_sc: NDArray,
-    vel_sc: NDArray,
+    pos_sc: NDArray[np.float64],
+    vel_sc: NDArray[np.float64],
     mass_sc: np.float64,
-    bodies: list,
+    bodies: list[Body],
 ) -> np.float64:
     """
     Énergie mécanique spécifique du spacecraft [J/kg].

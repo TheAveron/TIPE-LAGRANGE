@@ -21,6 +21,7 @@ Algorithme EVSK (Petersen AAS 19-806) :
 """
 
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 from core.integrator import integrate, rk4_step
@@ -28,12 +29,16 @@ from numpy.typing import NDArray
 
 from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
 from .lagrange import richardson_halo_L2
-from .stm import (compute_monodromy, eom_stm_factory, print_monodromy_summary,
-                  stable_unstable_eigvecs)
+from .stm import (
+    correct_halo,
+    eom_stm_factory,
+    print_monodromy_summary,
+    stable_unstable_eigvecs,
+)
 
 T_STAR_SEC = np.float64(365.25 * 86400 / (2 * np.pi))
 V_STAR_MS = np.float64(1.496e11 / T_STAR_SEC)
-
+ZERO = np.float64(0)
 
 # Structure d'une manœuvre
 
@@ -42,12 +47,12 @@ V_STAR_MS = np.float64(1.496e11 / T_STAR_SEC)
 class Maneuver:
     t_adim: np.float64
     t_days: np.float64
-    delta_v: NDArray
+    delta_v: NDArray[np.float64]
     dv_norm: np.float64
     dv_norm_ms: np.float64
-    state_before: NDArray
-    state_after: NDArray
-    error_before: NDArray
+    state_before: NDArray[np.float64]
+    state_after: NDArray[np.float64]
+    error_before: NDArray[np.float64]
 
 
 # ΔV EVSK avec vecteurs propres locaux (propagés par STM)
@@ -100,7 +105,7 @@ def evsk_delta_v(
     v_s: NDArray[np.float64],
     v_u_left: NDArray[np.float64],
     dv_max_adim: np.float64 = np.float64(1e-4),
-) -> NDArray:
+) -> NDArray[np.float64]:
     """
     Calcule le vecteur ΔV selon l'algorithme EVSK.
 
@@ -116,12 +121,12 @@ def evsk_delta_v(
     dv : (3,)  impulsion en vitesse [adim.]
     """
     e_v = v_s[3:].copy()
-    norm_ev = np.linalg.norm(e_v)
+    norm_ev = np.float64(np.linalg.norm(e_v))
     if norm_ev < 1e-14:
-        return np.zeros(3)
+        return np.zeros(3, dtype=np.float64)
     e_v /= norm_ev
 
-    dv_state = np.zeros(6)
+    dv_state = np.zeros(6, dtype=np.float64)
     dv_state[3:] = e_v
 
     proj_dx = np.dot(v_u_left, dx)
@@ -167,54 +172,56 @@ class StationKeepingSimulation:
 
     def __init__(
         self,
-        Az: np.float64 = 0.00279,
+        Az: np.float64 = np.float64(0.00279),
         mu: np.float64 = MU_SUN_EARTH,
-        n_revolutions: np.float64 = 4.0,
-        n_steps_per_rev: int = 5000,
-        dt_maneuver_days: np.float64 = 21.0,
-        perturbation: NDArray | None = None,
-        dv_max_ms: np.float64 = 2.0,
-        n_stm_steps: int = 10000,
+        n_revolutions: np.int16 = np.int16(4),
+        n_steps_per_rev: np.int16 = np.int16(5000),
+        dt_maneuver_days: np.float32 = np.float32(21),
+        perturbation: NDArray[np.float64] | None = None,
+        dv_max_ms: np.float64 = np.float64(2.0),
+        n_stm_steps: np.int16 = np.int16(10000),
     ):
         self.Az = Az
         self.mu = mu
         self.n_revolutions = n_revolutions
         self.n_steps_per_rev = n_steps_per_rev
         self.n_stm_steps = n_stm_steps
+        self.northern = False
         self.dt_maneuver_days = dt_maneuver_days
-        self.dt_maneuver = dt_maneuver_days * 86400 / T_STAR_SEC
+        self.dt_maneuver = np.float64(dt_maneuver_days * 86400 / T_STAR_SEC)
         self.dv_max_adim = dv_max_ms / V_STAR_MS
         self._perturbation = perturbation
 
-        self.times: NDArray | None = None
-        self.states: NDArray | None = None
-        self.states_free: NDArray | None = None
-        self.states_ref: NDArray | None = None
-        self.jacobi: NDArray | None = None
+        self.times: NDArray[np.float64] | None = None
+        self.states: NDArray[np.float64] | None = None
+        self.states_free: NDArray[np.float64] | None = None
+        self.states_ref: NDArray[np.float64] | None = None
+        self.jacobi: NDArray[np.float64] | None = None
         self.maneuvers: list[Maneuver] = []
 
-        self.M: NDArray | None = None
-        self.v_s: NDArray | None = None
-        self.v_s_list: list[NDArray] = []
-        self.v_u: NDArray | None = None
-        self.v_u_left: NDArray | None = None
+        self.M: NDArray[np.float64] | None = None
+        self.v_s: NDArray[np.float64] | None = None
+        self.v_s_list: list[NDArray[np.float64]] = []
+        self.v_u: NDArray[np.float64] | None = None
+        self.v_u_left: NDArray[np.float64] | None = None
         self.lam_s: complex | None = None
         self.lam_u: complex | None = None
         self.T_halo: np.float64 | None = None
-        self.state0_ref: NDArray | None = None
+        self.state0_ref: NDArray[np.float64] | None = None
 
         # STM dense sur une période (pour propagation des vecteurs propres)
-        self._t_stm: NDArray | None = None  # shape (N_stm,)
-        self._stm_arr: NDArray | None = None  # shape (N_stm, 6, 6)
-
-    # ------------------------------------------------------------------
+        self._t_stm: NDArray[np.float64] | None = None  # shape (N_stm,)
+        self._stm_arr: NDArray[np.float64] | None = None  # shape (N_stm, 6, 6)
 
     def run(self):
         # 1. État initial et période
         state0, T_half, c2 = richardson_halo_L2(
-            self.Az, self.mu, northern=True, phi=0.0
+            self.Az, self.mu, northern=self.northern, phi=ZERO
         )
-        self.T_halo = 2 * T_half
+        # Raffinement en orbite périodique (tir simple) AVANT la monodromie : sinon
+        # M = Φ(T,0) n'a pas la structure {1, 1, λ, 1/λ, e^{±iθ}} (valeurs propres
+        # toutes complexes) car la graine n'est pas réellement périodique.
+        state0, self.T_halo = correct_halo(state0, self.mu, T_guess=2 * T_half)
         self.state0_ref = state0
         t_end = self.n_revolutions * self.T_halo
         h = self.T_halo / self.n_steps_per_rev
@@ -226,7 +233,7 @@ class StationKeepingSimulation:
         t_stm, ys_stm = integrate(
             eom_stm_factory(self.mu),
             y0_stm,
-            0.0,
+            ZERO,
             self.T_halo,
             self.T_halo / self.n_stm_steps,
         )
@@ -247,7 +254,7 @@ class StationKeepingSimulation:
 
         # 4. Propagation référence sur toute la durée (pour interpolation δx)
         print("[SK] Propagation de l'orbite de référence complète...")
-        t_ref, s_ref = integrate(f, state0, 0.0, t_end, h)
+        t_ref, s_ref = integrate(f, state0, ZERO, t_end, h)
         self._t_ref = t_ref
         self._s_ref = s_ref
 
@@ -264,10 +271,10 @@ class StationKeepingSimulation:
         self.times, self.states = self._integrate_with_sk(s0_p, t_end, h, f)
 
         # 7. Intégration libre (comparaison)
-        _, self.states_free = integrate(f, s0_p, 0.0, t_end, h)
+        _, self.states_free = integrate(f, s0_p, ZERO, t_end, h)
 
         # 8. Référence interpolée
-        self.states_ref = np.array([self._ref_state(t) for t in self.times])
+        self.states_ref = np.array([self._ref_state(t) for t in self.times], np.float64)
 
         # 9. Constante de Jacobi
         self.jacobi = np.array(
@@ -276,27 +283,34 @@ class StationKeepingSimulation:
 
         print(self._summary())
 
-    # ------------------------------------------------------------------
-
-    def _ref_state(self, t: np.float64) -> NDArray:
+    def _ref_state(self, t: np.float64) -> NDArray[np.float64]:
         """Interpolation de la référence à l'instant t."""
-        assert self.T_halo
-        idx = np.clip(np.searchsorted(self._t_ref, t), 1, len(self._t_ref) - 1)
+        idx = np.clip(
+            np.searchsorted(self._t_ref, t),
+            1,
+            len(self._t_ref) - 1,
+            dtype=np.int64,
+        )
         t0, t1 = self._t_ref[idx - 1], self._t_ref[idx]
         s0, s1 = self._s_ref[idx - 1], self._s_ref[idx]
         if t1 == t0:
             return s0
         return s0 + (t - t0) / (t1 - t0) * (s1 - s0)
 
-    def _stm_at(self, t: np.float64) -> NDArray:
+    def _stm_at(self, t: np.float64) -> NDArray[np.float64]:
         """
         STM Φ(t mod T, 0) par interpolation sur le tableau pré-calculé.
         On utilise t mod T_halo car la STM est périodique (approximativement).
         """
 
-        assert self.T_halo and self._t_stm is not None and self._stm_arr is not None
+        assert self._t_stm is not None and self._stm_arr is not None
 
-        idx = np.clip(np.searchsorted(self._t_stm, t), 1, len(self._t_stm) - 1)
+        idx = np.clip(
+            np.searchsorted(self._t_stm, t),
+            1,
+            len(self._t_stm) - 1,
+            dtype=np.int64,
+        )
         t0, t1 = self._t_stm[idx - 1], self._t_stm[idx]
         P0, P1 = self._stm_arr[idx - 1], self._stm_arr[idx]
         if t1 == t0:
@@ -304,12 +318,14 @@ class StationKeepingSimulation:
         alpha = (t - t0) / (t1 - t0)
         return P0 + alpha * (P1 - P0)
 
-    def _integrate_with_sk(self, s0, t_end, h, f):
-        n_steps = int(np.ceil(t_end / h))
+    def _integrate_with_sk(
+        self, s0: NDArray[np.float64], t_end, h: np.float64, f: Callable
+    ):
+        n_steps = np.int64(np.ceil(t_end / h))
         times = np.empty(n_steps + 1)
-        states = np.empty((n_steps + 1, 6))
+        states = np.empty((n_steps + 1, 6), dtype=np.float64)
 
-        t, s = 0.0, s0.copy()
+        t, s = ZERO, s0.copy()
         times[0], states[0] = t, s
         t_next_man = self.dt_maneuver
 
@@ -334,7 +350,9 @@ class StationKeepingSimulation:
 
         return times, states
 
-    def _apply_maneuver(self, t: np.float64, state: NDArray) -> NDArray:
+    def _apply_maneuver(
+        self, t: np.float64, state: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
         x_ref = self._ref_state(t)
         dx = state - x_ref
 
@@ -366,53 +384,51 @@ class StationKeepingSimulation:
         )
         return state_after
 
-    # ------------------------------------------------------------------
-
     @property
-    def positions(self) -> NDArray:
+    def positions(self) -> NDArray[np.float64]:
         assert self.states is not None
         return self.states[:, :3]
 
     @property
-    def positions_free(self) -> NDArray:
+    def positions_free(self) -> NDArray[np.float64]:
         assert self.states_free is not None
         return self.states_free[:, :3]
 
     @property
-    def positions_ref(self) -> NDArray:
+    def positions_ref(self) -> NDArray[np.float64]:
         assert self.states_ref is not None
         return self.states_ref[:, :3]
 
     @property
-    def times_days(self) -> NDArray:
+    def times_days(self) -> NDArray[np.float64]:
         assert self.times is not None
-        return self.times * T_STAR_SEC / 86400
+        return self.times * (T_STAR_SEC / 86400)
 
     @property
-    def dv_norms_ms(self) -> NDArray:
-        return np.array([m.dv_norm_ms for m in self.maneuvers])
+    def dv_norms_ms(self) -> NDArray[np.float64]:
+        return np.array([m.dv_norm_ms for m in self.maneuvers], np.float64)
 
     @property
-    def maneuver_times_days(self) -> NDArray:
-        return np.array([m.t_days for m in self.maneuvers])
+    def maneuver_times_days(self) -> NDArray[np.float64]:
+        return np.array([m.t_days for m in self.maneuvers], np.float64)
 
     @property
     def total_dv_ms(self) -> np.float64:
         return np.float64(np.sum(self.dv_norms_ms))
 
     @property
-    def position_errors(self) -> NDArray:
+    def position_errors(self) -> NDArray[np.float64]:
         return np.linalg.norm(self.positions - self.positions_ref, axis=1) * 1.496e8
 
     @property
-    def position_errors_free(self) -> NDArray:
+    def position_errors_free(self) -> NDArray[np.float64]:
         return (
             np.linalg.norm(self.positions_free - self.positions_ref, axis=1) * 1.496e8
         )
 
     def _summary(self) -> str:
         n = len(self.maneuvers)
-        dvs = self.dv_norms_ms if n > 0 else np.array([0.0])
+        dvs = self.dv_norms_ms if n > 0 else np.array([0], np.float64)
         lines = [
             "\n[Station-Keeping] Simulation terminée",
             f"  Révolutions        : {self.n_revolutions}",

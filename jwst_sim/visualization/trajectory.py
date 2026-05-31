@@ -4,10 +4,9 @@ trajectory.py — Graphes de trajectoires 2D et 3D.
 Fournit des fonctions pour les deux modules (CR3BP et inertiel).
 """
 
-from pickle import FALSE
-
 import matplotlib.pyplot as plt
-import numpy as np
+from cr3bp.simulation import CR3BPSimulation
+from inertial.simulation import InertialSimulation
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (enregistrement projection 3d)
 
 from .utils import COLORS, add_colorbar_time, set_style
@@ -15,7 +14,7 @@ from .utils import COLORS, add_colorbar_time, set_style
 # CR3BP
 
 
-def plot_cr3bp_trajectory(sim, save_path: str | None = None):
+def plot_cr3bp_trajectory(sim: CR3BPSimulation, save_path: str | None = None):
     """
     Trajectoire 3D + projections 2D dans le repère tournant centré sur L2.
 
@@ -23,6 +22,8 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
     ----------
     sim : CR3BPSimulation  (après run())
     """
+    assert sim.times is not None
+
     set_style()
     pos = sim.positions
     L2 = sim.L2_position()
@@ -90,9 +91,7 @@ def plot_cr3bp_trajectory(sim, save_path: str | None = None):
 
 
 # Inertiel
-
-
-def plot_inertial_trajectory(sim, save_path: str | None = None):
+def plot_inertial_trajectory(sim: InertialSimulation, save_path: str | None = None):
     """
     Trajectoire JWST + orbite Terre dans le référentiel inertiel [UA].
 
@@ -100,6 +99,8 @@ def plot_inertial_trajectory(sim, save_path: str | None = None):
     ----------
     sim : InertialSimulation  (après run())
     """
+    assert sim.times is not None
+
     set_style()
     UA = 1.495_978_707e11  # m → UA
 

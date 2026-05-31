@@ -4,15 +4,18 @@ stationkeeping.py — Graphes spécifiques à la simulation avec corrections EVS
 
 import matplotlib.pyplot as plt
 import numpy as np
+from cr3bp.stationkeeping import StationKeepingSimulation
 
 from .utils import COLORS, annotate_extrema, set_style
 
 
-def plot_sk_trajectory(sim_sk, save_path: str | None = None):
+def plot_sk_trajectory(sim_sk: StationKeepingSimulation, save_path: str | None = None):
     """
     Trajectoires comparées : avec corrections / sans corrections / référence.
     Vue 3D + projections 2D dans le repère tournant centré sur L2.
     """
+    assert sim_sk.times is not None
+
     set_style()
     KM = 1.496e8  # adim → km
 
@@ -29,12 +32,13 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
     v_s = v_s / np.linalg.norm(v_s, axis=1, keepdims=True)
 
     step = max(len(pos_sk) // 200, 1)
-    idx = np.arange(0, len(pos_sk), step)
+    idx = np.arange(0, len(pos_sk), step, dtype=np.int64)
 
     # Positions des manœuvres
     man_pos = (
         np.array(
-            [(sim_sk._ref_state(m.t_adim)[:3] - L2) * KM for m in sim_sk.maneuvers]
+            [(sim_sk._ref_state(m.t_adim)[:3] - L2) * KM for m in sim_sk.maneuvers],
+            dtype=np.float64,
         )
         if sim_sk.maneuvers
         else None
@@ -155,7 +159,7 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
             v[1],
             v[2],
             length=int(scale),
-            color="cyan",
+            color="red",
             alpha=0.8,
             linewidth=1.0,
         )
@@ -165,7 +169,7 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
             pos_sk[i, 1],
             v[0],
             v[1],
-            color="cyan",
+            color="red",
             alpha=0.8,
             linewidth=1.0,
         )
@@ -175,7 +179,7 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
             pos_sk[i, 2],
             v[1],
             v[2],
-            color="cyan",
+            color="red",
             alpha=0.8,
             linewidth=0.4,
         )
@@ -186,7 +190,9 @@ def plot_sk_trajectory(sim_sk, save_path: str | None = None):
     plt.show()
 
 
-def plot_delta_v_history(sim_sk, save_path: str | None = None):
+def plot_delta_v_history(
+    sim_sk: StationKeepingSimulation, save_path: str | None = None
+):
     """
     Historique des ΔV : magnitude par manœuvre et cumulé.
     """
@@ -239,11 +245,12 @@ def plot_delta_v_history(sim_sk, save_path: str | None = None):
     plt.show()
 
 
-def plot_sk_jacobi(sim_sk, save_path: str | None = None):
+def plot_sk_jacobi(sim_sk: StationKeepingSimulation, save_path: str | None = None):
     """
     Constante de Jacobi avec les instants de manœuvre marqués.
     Les manœuvres brisent la conservation de C (ΔC = ΔV · dC/dv ≠ 0 en général).
     """
+    assert sim_sk.jacobi is not None
     set_style()
     t = sim_sk.times_days
     C = sim_sk.jacobi

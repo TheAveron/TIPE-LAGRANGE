@@ -20,11 +20,9 @@ from core.body import Body
 from core.integrator import integrate
 from numpy.typing import NDArray
 
-from .forces import G, gravitational_acceleration, mechanical_energy
+from .forces import gravitational_acceleration, mechanical_energy
 
 # Constantes physiques SI
-
-
 L_STAR = np.float64(1.495_978_707e11)  # 1 UA [m]
 M_SUN = np.float64(1.989e30)  # [kg]
 M_EARTH_MOON = np.float64(6.045e24)
@@ -52,22 +50,34 @@ class InertialSimulation:
 
     def __init__(
         self,
-        state0_cr3bp: NDArray,
-        n_revolutions: np.float64 = np.float64(4),
+        state0_cr3bp: NDArray[np.float64],
+        n_revolutions: np.int16 = np.int16(4),
         T_halo_adim: np.float64 = np.float64(3),  # valeur typique JWST
-        n_steps_per_rev: int = 5000,
+        n_steps_per_rev: np.int16 = np.int16(5000),
     ):
         self.n_revolutions = n_revolutions
         self.T_halo_adim = T_halo_adim
         self.n_steps_per_rev = n_steps_per_rev
 
         # Conversion t* → secondes
-        self.T_star_s = T_EARTH_S / (2 * np.pi)  # t* [s]
+        self.T_star_s = T_EARTH_S / (2 * np.pi)
         self.T_halo_s = T_halo_adim * self.T_star_s
 
         # Corps fixes (mis à jour dynamiquement à chaque pas)
-        self.sun = Body("Soleil", M_SUN, np.zeros(3), np.zeros(3), fixed=True)
-        self.earth = Body("Terre", M_EARTH_MOON, np.zeros(3), np.zeros(3), fixed=True)
+        self.sun = Body(
+            "Soleil",
+            M_SUN,
+            np.zeros(3, dtype=np.float64),
+            np.zeros(3, dtype=np.float64),
+            fixed=True,
+        )
+        self.earth = Body(
+            "Terre",
+            M_EARTH_MOON,
+            np.zeros(3, dtype=np.float64),
+            np.zeros(3, dtype=np.float64),
+            fixed=True,
+        )
 
         # État initial JWST converti en SI
         self.state0_si = self._cr3bp_to_inertial(state0_cr3bp)
@@ -79,13 +89,15 @@ class InertialSimulation:
         )
 
         # Résultats
-        self.times: NDArray | None = None
-        self.states: NDArray | None = None
-        self.energy: NDArray | None = None
+        self.times: NDArray[np.float64] | None = None
+        self.states: NDArray[np.float64] | None = None
+        self.energy: NDArray[np.float64] | None = None
 
     # Conversion CR3BP adim. → inertiel SI  (à t=0)
 
-    def _cr3bp_to_inertial(self, state_cr3bp: NDArray) -> NDArray:
+    def _cr3bp_to_inertial(
+        self, state_cr3bp: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
         """
         Convertit [x,y,z,vx,vy,vz] adim. CR3BP → SI inertiel à t=0.
 
@@ -122,11 +134,13 @@ class InertialSimulation:
         vy_si = vy_nd * v_star + OMEGA_EARTH * (x_nd * L_STAR - x_offset)
         vz_si = vz_nd * v_star
 
-        return np.array([pos_si[0], pos_si[1], pos_si[2], vx_si, vy_si, vz_si])
+        return np.array(
+            [pos_si[0], pos_si[1], pos_si[2], vx_si, vy_si, vz_si], dtype=np.float64
+        )
 
     # Équations de mouvement N-corps (référentiel inertiel)
 
-    def _eom(self, t: np.float64, state: NDArray) -> NDArray:
+    def _eom(self, t: np.float64, state: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         dy/dt pour le vecteur d'état [x, y, z, vx, vy, vz] du JWST.
         Les corps massifs (Soleil, Terre) sont mis à jour à chaque appel.
@@ -134,7 +148,7 @@ class InertialSimulation:
         # Mise à jour de la position de la Terre sur son orbite circulaire
         theta = OMEGA_EARTH * t
         self.earth.position = R_EARTH_ORBIT * np.array(
-            [np.cos(theta), np.sin(theta), 0.0]
+            [np.cos(theta), np.sin(theta), 0.0], dtype=np.float64
         )
         # Soleil fixe à l'origine
 
@@ -142,7 +156,7 @@ class InertialSimulation:
         vel = state[3:]
         acc = gravitational_acceleration(pos, [self.sun, self.earth])
 
-        return np.concatenate([vel, acc])
+        return np.concatenate([vel, acc], dtype=np.float64)
 
     # Lancement
 
@@ -155,11 +169,11 @@ class InertialSimulation:
         )
 
         # Énergie mécanique spécifique à chaque pas
-        self.energy = np.empty(len(self.times))
+        self.energy = np.empty(len(self.times), dtype=np.float64)
         for i, (t, s) in enumerate(zip(self.times, self.states)):
             theta = OMEGA_EARTH * t
             self.earth.position = R_EARTH_ORBIT * np.array(
-                [np.cos(theta), np.sin(theta), 0.0]
+                [np.cos(theta), np.sin(theta), 0.0], dtype=np.float64
             )
             self.energy[i] = mechanical_energy(
                 s[:3], s[3:], self.jwst.mass, [self.sun, self.earth]
@@ -192,31 +206,35 @@ class InertialSimulation:
     # Accesseurs
 
     @property
-    def positions(self) -> NDArray:
+    def positions(self) -> NDArray[np.float64]:
         """shape (N, 3) [m]"""
         assert self.states is not None
         return self.states[:, :3]
 
     @property
-    def velocities(self) -> NDArray:
+    def velocities(self) -> NDArray[np.float64]:
         """shape (N, 3) [m/s]"""
         assert self.states is not None
         return self.states[:, 3:]
 
     @property
-    def speeds(self) -> NDArray:
+    def speeds(self) -> NDArray[np.float64]:
         """shape (N,) [m/s]"""
         return np.linalg.norm(self.velocities, axis=1)
 
     @property
-    def times_days(self) -> NDArray:
+    def times_days(self) -> NDArray[np.float64]:
         assert self.times is not None
         return self.times / 86400
 
-    def earth_positions(self) -> NDArray:
+    def earth_positions(self) -> NDArray[np.float64]:
         """Positions de la Terre à chaque instant, shape (N, 3) [m]."""
         assert self.times is not None
         theta = OMEGA_EARTH * self.times
         return R_EARTH_ORBIT * np.column_stack(
-            [np.cos(theta), np.sin(theta), np.zeros_like(theta)]
+            [
+                np.cos(theta, dtype=np.float64),
+                np.sin(theta, dtype=np.float64),
+                np.zeros_like(theta, dtype=np.float64),
+            ]
         )

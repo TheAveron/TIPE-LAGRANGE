@@ -86,18 +86,19 @@ def richardson_halo_L2(
     """
     m = 1 if northern else -1
     gamma = _gamma_L2(mu)
+
+    # Az est fourni en unités CR3BP (barycentriques). Le développement de Richardson travaille en coordonnées locales normalisées par γ (distance L2–Terre).
+    Az = np.float64(Az) / gamma
+
     c = _cn_coefficients(gamma, mu)
 
     c2, c3, c4 = c[2], c[3], c[4]
 
-    print("cn coeff", c2, c3, c4)
-
-    Az = Az / gamma
-
     # Fréquences et coefficients (Richardson 1980, Table 1)
 
-    # Fréquences (valeur propre de la partie in-plane)
-    lam, omega_p, omega_v = _eigenvalues(c2)
+    # _eigenvalues renvoie (taux hyperbolique, fréquence d'oscillation in-plane, hors-plan).
+    lam_hyp, omega_p, omega_v = _eigenvalues(c2)
+    lam = omega_p
 
     # Coefficients k, d1, d2
     k = (1 + 2 * c2 + lam**2) / (2 * lam)
@@ -143,9 +144,7 @@ def richardson_halo_L2(
     ) / d2
 
     d31 = (3 / (64 * lam**2)) * (4 * c3 * a24 + c4)
-    d32 = (3 / (64 * lam**2)) * (4 * c3 * a23 - d21 + c4 * (1 + k**2 + 3))  # k**2 + 4
-
-    # ----
+    d32 = (3 / (64 * lam**2)) * (4 * c3 * a23 - d21 + c4 * (k**2 + 4))
 
     temp_denom = 2 * lam * (lam * (1 + k**2) - 2 * k)
     s1 = (
@@ -170,14 +169,13 @@ def richardson_halo_L2(
     omega1 = ZERO  # correction 1er ordre nulle pour halo
 
     delta = omega_p**2 - omega_v**2
-    Ax = np.sqrt(-(delta + Az**2 * l2) / l1, dtype=np.float64)
+
+    Ax = np.sqrt((delta + Az**2 * l2) / l1, dtype=np.float64)
+
     nu = 1 + s1 * Ax**2 + s2 * Az**2
 
-    # Demi-période
     T_half = np.float64(np.pi / (omega_p * nu))
 
-    # Coordonnées dans le repère centré sur L2 (repère de Richardson)
-    # puis recentrage sur le barycentre
     tau = ZERO
 
     tau1 = omega_p * tau + phi
@@ -237,13 +235,14 @@ def richardson_halo_L2(
         )
     )
 
-    # Passage aux coordonnées CR3BP (barycentre comme origine)
-    x = x_L2 + xi * gamma
-    y = eta * gamma
-    z = zeta * gamma
-    vx = xi_dot * gamma
-    vy = eta_dot * gamma
-    vz = zeta_dot * gamma
+    # Passage des coordonnées locales de Richardson (échelle γ) aux coordonnées
+
+    x = x_L2 + gamma * xi
+    y = gamma * eta
+    z = gamma * zeta
+    vx = gamma * xi_dot
+    vy = gamma * eta_dot
+    vz = gamma * zeta_dot
 
     return np.array([x, y, z, vx, vy, vz], dtype=np.float64), T_half, c2
 
@@ -253,15 +252,17 @@ def _cn_coefficients(
     gamma: np.float64, mu: np.float64, n_max: int = 5
 ) -> dict[int, np.float64]:
     """
-    Coefficients c_n du développement du potentiel autour de L2.
-    c_n = ((-1)^n / γ³) [ μ + (1-μ) γ^(n+1) / (1+γ)^(n+1) ]
+    Coefficients c_n du développement du potentiel autour de L2
+
+        c_n = ((-1)^n / γ³) [ μ + (1-μ) γ^(n+1) / (1+γ)^(n+1) ]
+
+    correctes Soleil–Terre L2 : c2≈3.94, c3≈-2.98, c4≈2.97.
     """
     c: dict[int, np.float64] = {}
     for n in range(2, n_max + 1):
         c[n] = np.float64(
-            (-1) ** n
-            * (mu + (1 - mu) * (gamma ** (n + 1)) / ((1 + gamma) ** (n + 1)))
-            / (gamma ** (3))
+            ((-1) ** n / gamma**3)
+            * (mu + (1 - mu) * gamma ** (n + 1) / (1 + gamma) ** (n + 1))
         )
     return c
 
