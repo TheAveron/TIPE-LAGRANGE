@@ -261,16 +261,16 @@ def _cn_coefficients(
     c: dict[int, np.float64] = {}
     for n in range(2, n_max + 1):
         c[n] = np.float64(
-            ((-1) ** n / gamma**3)
-            * (mu + (1 - mu) * gamma ** (n + 1) / (1 + gamma) ** (n + 1))
+            (1 / gamma ** (n + 1))
+            * (mu + (1 - mu) * gamma ** (n + 1) / (1 - gamma) ** (n + 1))
         )
+    print(c)
     return c
 
 
 def _eigenvalues(c2: np.float64) -> tuple[np.float64, np.float64, np.float64]:
     """
-    Valeur propre réelle positive de la partie in-plane (fréquence λ).
-    λ² = (c2 - 2 + sqrt(9c2² - 8c2)) / 2
+    Valeurs propres associées au système.
     """
     disc = 9 * c2**2 - 8 * c2
     lam2 = (c2 - 2 + np.sqrt(disc, dtype=np.float64)) / 2
