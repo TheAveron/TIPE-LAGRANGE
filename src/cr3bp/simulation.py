@@ -6,9 +6,10 @@ en enregistrant position, vitesse, temps et constante de Jacobi.
 """
 
 import numpy as np
+from numpy.typing import NDArray
+
 from core.body import Body
 from core.integrator import integrate
-from numpy.typing import NDArray
 
 from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
 from .lagrange import lagrange_L2, richardson_halo_L2

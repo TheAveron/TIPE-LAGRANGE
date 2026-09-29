@@ -20,8 +20,9 @@ Système augmenté pour l'intégration simultanée de [x, Φ] :
 """
 
 import numpy as np
-from core.integrator import integrate, rk4_step
 from numpy.typing import NDArray
+
+from core.integrator import integrate, rk4_step
 
 from .equations import MU_SUN_EARTH, eom
 

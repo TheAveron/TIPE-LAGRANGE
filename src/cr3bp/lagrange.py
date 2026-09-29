@@ -42,7 +42,7 @@ def _gamma_L2(mu: np.float64) -> np.float64:
 
     g0 = (mu / 3) ** (1 / 3)
 
-    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))
+    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))  # type: ignore
 
 
 def lagrange_L2(mu: np.float64 = MU_SUN_EARTH) -> NDArray[np.float64]:

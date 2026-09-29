@@ -156,7 +156,7 @@ def _gamma_L1(mu: np.float64):
         )
 
     g0 = (mu / 3) ** (1 / 3)
-    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))
+    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))  # type: ignore
 
 
 def _gamma_L2(mu: np.float64):
@@ -167,7 +167,7 @@ def _gamma_L2(mu: np.float64):
         )
 
     g0 = (mu / 3) ** (1 / 3)
-    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))
+    return np.float64(brentq(eq, g0 * 0.5, g0 * 1.5))  # type: ignore
 
 
 def _gamma_L3(mu: np.float64):
@@ -182,7 +182,7 @@ def _gamma_L3(mu: np.float64):
             - (1 - mu)
         )
 
-    return np.float64(brentq(eq, 0.5, 1.5))
+    return np.float64(brentq(eq, 0.5, 1.5))  # type: ignore
 
 
 def lagrange_points(mu=MU):
@@ -595,21 +595,21 @@ def plot_stable_unstable_manifolds(
     eigs, vecs = np.linalg.eig(A)
 
     # Identifier les vecteurs propres réels stable (σ<0) et instable (σ>0)
-    real_mask = np.abs(eigs.imag) < 1e-8 * (np.abs(eigs.real) + 1e-30)
+    real_mask = np.abs(eigs.imag) < 1e-8 * (np.abs(eigs.real) + 1e-30)  # type: ignore
     real_idx = np.where(real_mask)[0]
 
     # Instable : valeur propre réelle la plus POSITIVE (Re > 0)
     # Stable   : valeur propre réelle la plus NÉGATIVE (Re < 0)
-    idx_u = real_idx[np.argmax(eigs.real[real_idx])]  # λ > 0
-    idx_s = real_idx[np.argmin(eigs.real[real_idx])]  # λ < 0
+    idx_u = real_idx[np.argmax(eigs.real[real_idx])]  # λ > 0   # type: ignore
+    idx_s = real_idx[np.argmin(eigs.real[real_idx])]  # λ < 0   # type: ignore
 
-    v_u = vecs[:, idx_u].real  #
-    v_s = vecs[:, idx_s].real  #
+    v_u = vecs[:, idx_u].real  # type: ignore
+    v_s = vecs[:, idx_s].real  # type: ignore
     v_u /= np.linalg.norm(v_u)
     v_s /= np.linalg.norm(v_s)
 
-    lam_u = eigs[idx_u].real  # positif
-    lam_s = eigs[idx_s].real  # négatif
+    lam_u = eigs[idx_u].real  # positif   # type: ignore
+    lam_s = eigs[idx_s].real  # négatif  # type: ignore
 
     print(f"  λ_instable = {lam_u:+.6f},  λ_stable = {lam_s:+.6f}")
     print(
@@ -751,11 +751,11 @@ def plot_lyapunov_divergence(
     if v_u is None:
         A_mat = jacobian_cr3bp(xL2, yL2, ZERO, mu)
         eigs, vecs = np.linalg.eig(A_mat)
-        real_idx = np.where(np.abs(eigs.imag) < 1e-8)[0]
-        idx_u = real_idx[np.argmax(eigs.real[real_idx])]  # λ > 0
-        v_u = vecs[:, idx_u].real
-        v_u /= np.linalg.norm(v_u)
-        lam_u = eigs[idx_u].real
+        real_idx = np.where(np.abs(eigs.imag) < 1e-8)[0]  # type: ignore
+        idx_u = real_idx[np.argmax(eigs.real[real_idx])]  # λ > 0   # type: ignore
+        v_u = vecs[:, idx_u].real  # type: ignore
+        v_u /= np.linalg.norm(v_u)  # type: ignore
+        lam_u = eigs[idx_u].real  # type: ignore
 
     assert lam_u is not None
 
@@ -785,7 +785,7 @@ def plot_lyapunov_divergence(
     ax_lin = fig.add_subplot(gs[1, 0])  # comparaison linéaire vs non-linéaire
     ax_comp = fig.add_subplot(gs[1, 1])  # exposant de Lyapunov local
 
-    colors_eps = plt.cm.plasma(np.linspace(0.15, 0.85, len(epsilons), dtype=np.float64))
+    colors_eps = plt.cm.plasma(np.linspace(0.15, 0.85, len(epsilons), dtype=np.float64))  # type: ignore
 
     # ── Intégration non-linéaire ──
     def f_fwd(t: np.float64, s: NDArray[np.float64]):
@@ -946,7 +946,7 @@ if __name__ == "__main__":
     H = hessian_U_eff(lp_vals["L2"][0], ZERO, MU)
     print(f"  det(Hess U*|L2)      = {np.linalg.det(H):.6f}  < 0  => col (point-selle)")
     eigs_L2 = eigvals(A_L2)
-    sigma = max(z.real for z in eigs_L2)
+    sigma = max(z.real for z in eigs_L2)  # type: ignore
     print(f"  lambda_max (Jacobien L2)  = {sigma:+.6f}  > 0  => instable")
     print(f"  Temps de doublement  = {np.log(2)/sigma * T_STAR_DAYS:.1f} jours")
     print(f"  Sans station-keeping, une perturbation de 100 km")

@@ -5,10 +5,11 @@ Fournit des fonctions pour les deux modules (CR3BP et inertiel).
 """
 
 import matplotlib.pyplot as plt
-from cr3bp.simulation import CR3BPSimulation
-from inertial.simulation import InertialSimulation
 from mpl_toolkits.mplot3d import \
     Axes3D  # noqa: F401  (enregistrement projection 3d)
+
+from cr3bp.simulation import CR3BPSimulation
+from inertial.simulation import InertialSimulation
 
 from .utils import COLORS, add_colorbar_time, set_style
 
@@ -42,7 +43,7 @@ def plot_cr3bp_trajectory(sim: CR3BPSimulation, save_path: str | None = None):
     ax3 = fig.add_subplot(2, 2, 1, projection="3d")
     ax3.set_facecolor(COLORS["bg"])
     sc = ax3.scatter(
-        dpos[:, 0], dpos[:, 1], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5, alpha=0.8
+        dpos[:, 0], dpos[:, 1], dpos[:, 2], c=t_norm, cmap="plasma", s=0.5, alpha=0.8  # type: ignore
     )
     ax3.scatter(0, 0, 0, color=COLORS["L2"], s=60, zorder=5, label="L2")
     ax3.set_xlabel("ΔX [km]")
@@ -118,10 +119,10 @@ def plot_inertial_trajectory(sim: InertialSimulation, save_path: str | None = No
     ax3.scatter(
         pos_jwst[:, 0],
         pos_jwst[:, 1],
-        pos_jwst[:, 2],
+        pos_jwst[:, 2],  # type: ignore
         c=t_norm,
         cmap="plasma",
-        s=0.5,
+        s=0.5,  # type: ignore
         alpha=0.8,
         label="JWST",
     )

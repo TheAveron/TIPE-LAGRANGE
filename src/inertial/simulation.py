@@ -16,9 +16,10 @@ Unités : SI (m, kg, s).
 """
 
 import numpy as np
+from numpy.typing import NDArray
+
 from core.body import Body
 from core.integrator import integrate
-from numpy.typing import NDArray
 
 from .forces import gravitational_acceleration, mechanical_energy
 

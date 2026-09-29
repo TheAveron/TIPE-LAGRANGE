@@ -10,8 +10,9 @@ Unités SI :
 """
 
 import numpy as np
-from core.body import Body
 from numpy.typing import NDArray
+
+from core.body import Body
 
 G = np.float64(6.674_30e-11)  # constante gravitationnelle [m³ kg⁻¹ s⁻²]
 

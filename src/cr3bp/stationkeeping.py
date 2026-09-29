@@ -24,18 +24,14 @@ from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
-from core.integrator import integrate, rk4_step
 from numpy.typing import NDArray
+
+from core.integrator import integrate, rk4_step
 
 from .equations import MU_SUN_EARTH, eom_factory, jacobi_constant
 from .lagrange import richardson_halo_L2
-from .stm import (
-    correct_halo,
-    eom_stm_factory,
-    jacobian,
-    print_monodromy_summary,
-    stable_unstable_eigvecs,
-)
+from .stm import (correct_halo, eom_stm_factory, jacobian,
+                  print_monodromy_summary, stable_unstable_eigvecs)
 
 T_STAR_SEC = np.float64(365.25 * 86400 / (2 * np.pi))
 V_STAR_MS = np.float64(1.496e11 / T_STAR_SEC)

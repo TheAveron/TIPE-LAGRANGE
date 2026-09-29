@@ -4,6 +4,7 @@ stationkeeping.py — Graphes spécifiques à la simulation avec corrections EVS
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from cr3bp.stationkeeping import StationKeepingSimulation
 
 from .utils import COLORS, annotate_extrema, set_style
@@ -64,10 +65,10 @@ def plot_sk_trajectory(sim_sk: StationKeepingSimulation, save_path: str | None =
     ax3.scatter(
         pos_sk[:, 0],
         pos_sk[:, 1],
-        pos_sk[:, 2],
+        pos_sk[:, 2],  # type: ignore
         c=t_norm,
         cmap="plasma",
-        s=0.4,
+        s=0.4,  # type: ignore
         label="Avec SK",
     )
 
@@ -84,7 +85,7 @@ def plot_sk_trajectory(sim_sk: StationKeepingSimulation, save_path: str | None =
         ax3.scatter(
             man_pos[:, 0],
             man_pos[:, 1],
-            man_pos[:, 2],
+            man_pos[:, 2],  # type: ignore
             color="white",
             s=20,
             zorder=6,

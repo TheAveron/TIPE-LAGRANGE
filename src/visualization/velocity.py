@@ -3,6 +3,7 @@ velocity.py — Graphes de vitesse du JWST.
 """
 
 import matplotlib.pyplot as plt
+
 from cr3bp.simulation import CR3BPSimulation
 from inertial.simulation import InertialSimulation
 

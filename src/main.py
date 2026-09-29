@@ -5,6 +5,7 @@ Lance les deux simulations (CR3BP et inertielle) et affiche les graphes.
 """
 
 import numpy as np
+
 from cr3bp import CR3BPSimulation
 from cr3bp.stationkeeping import StationKeepingSimulation
 from inertial import InertialSimulation
