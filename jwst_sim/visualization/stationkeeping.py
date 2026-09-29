@@ -28,6 +28,8 @@ def plot_sk_trajectory(sim_sk: StationKeepingSimulation, save_path: str | None =
     pos_ref = (sim_sk.positions_ref - L2) * KM
     t_norm = sim_sk.times / sim_sk.times[-1]
 
+    print(sim_sk.v_s_list)
+
     v_s = np.asarray(sim_sk.v_s_list)[:, :3]
     v_s = v_s / np.linalg.norm(v_s, axis=1, keepdims=True)
 

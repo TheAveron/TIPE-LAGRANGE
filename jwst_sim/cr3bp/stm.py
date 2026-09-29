@@ -232,6 +232,8 @@ def stable_unstable_eigvecs(
     eigvals_R, V_R = np.linalg.eig(M)  # droits  : M  v = λ v
     eigvals_L, V_L = np.linalg.eig(M.T)  # gauches : M^T w = λ w
 
+    print("eigenval", eigvals_R, eigvals_L)
+
     mods = np.abs(eigvals_R, dtype=np.float64)
 
     # Valeur propre la plus petite en module → stable
@@ -279,6 +281,7 @@ def stable_unstable_eigvecs(
     else:
         v_s_left_vec /= np.linalg.norm(v_s_left_vec)
 
+    print(v_s_vec, v_u_vec, v_s_left_vec, v_u_left_vec, lam_s, lam_u)
     return v_s_vec, v_u_vec, v_s_left_vec, v_u_left_vec, lam_s, lam_u
 
 
@@ -290,6 +293,6 @@ def print_monodromy_summary(M: NDArray[np.float64], mu: np.float64 = MU_SUN_EART
     print(v_s)
     print("\n[Monodromie]")
     print(f"  Valeurs propres |λ| : {sorted(mods.tolist())}")
-    print(f"  λ_stable   = {lam_s:.6f}  (|λ_s| = {abs(lam_s):.4e})")
+    print(f"  λ_stable   = {lam_s:.6f}  (M|λ_s| = {abs(lam_s):.4e})")
     print(f"  λ_instable = {lam_u:.6f}  (|λ_u| = {abs(lam_u):.4e})")
     print(f"  Produit |λ_s|·|λ_u| = {abs(lam_s)*abs(lam_u):.6f}  (attendu ≈ 1)")

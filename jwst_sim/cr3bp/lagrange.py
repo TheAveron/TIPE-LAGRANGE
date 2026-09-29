@@ -84,7 +84,7 @@ def richardson_halo_L2(
     T_half : np.float64
         Demi-période approximative de l'orbite halo [adim.].
     """
-    m = 1 if northern else -1
+    m = 1  # if northern else -1
     gamma = _gamma_L2(mu)
 
     # Az est fourni en unités CR3BP (barycentriques). Le développement de Richardson travaille en coordonnées locales normalisées par γ (distance L2–Terre).
@@ -174,7 +174,7 @@ def richardson_halo_L2(
 
     nu = 1 + s1 * Ax**2 + s2 * Az**2
 
-    T_half = np.float64(np.pi / (omega_p * nu))
+    T_half = m * np.float64(np.pi / (omega_p * nu))
 
     tau = ZERO
 
@@ -261,10 +261,9 @@ def _cn_coefficients(
     c: dict[int, np.float64] = {}
     for n in range(2, n_max + 1):
         c[n] = np.float64(
-            (1 / gamma ** (n + 1))
-            * (mu + (1 - mu) * gamma ** (n + 1) / (1 - gamma) ** (n + 1))
+            ((-1) ** n / gamma**3)
+            * (mu + (1 - mu) * gamma ** (n + 1) / (1 + gamma) ** (n + 1))
         )
-    print(c)
     return c
 
 
@@ -275,6 +274,8 @@ def _eigenvalues(c2: np.float64) -> tuple[np.float64, np.float64, np.float64]:
     disc = 9 * c2**2 - 8 * c2
     lam2 = (c2 - 2 + np.sqrt(disc, dtype=np.float64)) / 2
     omega_p2 = (c2 - 2 - np.sqrt(disc, dtype=np.float64)) / 2
+
+    print("lam2", np.sqrt(lam2))
     return (
         np.sqrt(lam2, dtype=np.float64),
         np.sqrt(-omega_p2, dtype=np.float64),

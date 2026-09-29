@@ -32,6 +32,7 @@ from .lagrange import richardson_halo_L2
 from .stm import (
     correct_halo,
     eom_stm_factory,
+    jacobian,
     print_monodromy_summary,
     stable_unstable_eigvecs,
 )
@@ -245,7 +246,7 @@ class StationKeepingSimulation:
         # self._s_ref = ys_stm[:, :6]
 
         # 3. Monodromie et vecteurs propres à t=0
-        self.M = self._stm_arr[-1]
+        self.M = jacobian(state0, self.mu)
         assert self.M is not None
         self.v_s, self.v_u, _, self.v_u_left, self.lam_s, self.lam_u = (
             stable_unstable_eigvecs(self.M)
