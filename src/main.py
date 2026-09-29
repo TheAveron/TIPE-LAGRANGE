@@ -8,19 +8,11 @@ import numpy as np
 from cr3bp import CR3BPSimulation
 from cr3bp.stationkeeping import StationKeepingSimulation
 from inertial import InertialSimulation
-from visualization import (
-    plot_cr3bp_trajectory,
-    plot_cr3bp_velocity,
-    plot_delta_v_history,
-    plot_energy,
-    plot_energy_comparison,
-    plot_inertial_trajectory,
-    plot_inertial_velocity,
-    plot_jacobi,
-    plot_sk_jacobi,
-    plot_sk_trajectory,
-    plot_velocity_comparison,
-)
+from visualization import (plot_cr3bp_trajectory, plot_cr3bp_velocity,
+                           plot_delta_v_history, plot_energy,
+                           plot_energy_comparison, plot_inertial_trajectory,
+                           plot_inertial_velocity, plot_jacobi, plot_sk_jacobi,
+                           plot_sk_trajectory, plot_velocity_comparison)
 
 # Paramètres communs
 

@@ -239,8 +239,8 @@ def stable_unstable_eigvecs(
     # Valeur propre la plus petite en module → stable
     # Valeur propre la plus grande en module → instable
     # On exclut les paires complexes en cherchant parmi les réelles
-    real_mask = np.abs(eigvals_R.imag, dtype=np.float64) < 1e-6 * np.abs(
-        eigvals_R.real + 1e-30, dtype=np.float64
+    real_mask = np.abs(eigvals_R.imag, dtype=np.float64) < 1e-6 * np.abs(  # type: ignore
+        eigvals_R.real + 1e-30, dtype=np.float64  # type: ignore
     )  #
 
     if real_mask.sum() >= 2:
@@ -259,10 +259,10 @@ def stable_unstable_eigvecs(
     idx_s_L = int(np.argmin(np.abs(eigvals_L - lam_s)))
     idx_u_L = int(np.argmin(np.abs(eigvals_L - lam_u)))
 
-    v_s_vec = V_R[:, idx_s].real
-    v_u_vec = V_R[:, idx_u].real
-    v_s_left_vec = V_L[:, idx_s_L].real
-    v_u_left_vec = V_L[:, idx_u_L].real
+    v_s_vec = V_R[:, idx_s].real  # type: ignore
+    v_u_vec = V_R[:, idx_u].real  # type: ignore
+    v_s_left_vec = V_L[:, idx_s_L].real  # type: ignore
+    v_u_left_vec = V_L[:, idx_u_L].real  # type: ignore
 
     # Normalisation L2
     v_s_vec /= np.linalg.norm(v_s_vec)

@@ -98,7 +98,7 @@ def _local_eigvecs(
     if abs(dot) > 1e-14:
         v_u_left_k /= dot
 
-    return v_s_k, v_u_left_k
+    return v_s_k, v_u_left_k  # type: ignore
 
 
 def evsk_delta_v(
